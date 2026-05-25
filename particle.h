@@ -16,15 +16,16 @@ private:
     
     double mass;
     double radius;
+    double restitution;
     
     // Visual State (SFML uses floats for rendering)
     sf::CircleShape circle;
 
 public:
-    Particle(double radius, double m = 1.0, 
+    Particle(double radius, double m = 1.0, double rest = 1.0,
              const Eigen::Vector2d& position = Eigen::Vector2d::Zero(), 
              const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero())
-        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), mass(m), radius(radius) 
+        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), mass(m), radius(radius),restitution(rest)
     {
         // Replaced the broken printf with standard cout
         cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
@@ -40,6 +41,7 @@ public:
     Eigen::Vector2d getPos() const { return pos; }
     Eigen::Vector2d getVel() const { return vel; }
     double getRadius() const { return radius; }
+    double getRest() const { return restitution; }
     double getMass() const { return mass; }
 
     //Setters
@@ -76,14 +78,40 @@ public:
         if (!collision(p1, p2)) return;
         
         //Define normal vector on which collision occurs
-
+        Eigen::Vector2d n = (p1.getPos()-p2.getPos()).normalized();
         //Find relative velocity parallel to normal vector
+        double relVel = (p1.getVel()-p2.getVel()).dot(n);
         
         //If positive, then particles are moving away from each other, return;
-
+        if(relVel>=0) return;
         //If negative, then collision is happening, resolve with formula and restitution coefficient
+        double e = std::min(p1.getRest(), p2.getRest());
 
-        //Try to make it as fast as possible, since N*(N-1)/2 
-        //will be happening every time step (N choose 2 pairs)
+        Eigen::Vector2d vel1 = ((p1.getMass() - e * p2.getMass()) * p1.getVel().dot(n) + p2.getMass() * (1 + e) * p2.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
+        Eigen::Vector2d vel2 = ((p2.getMass() - e * p1.getMass()) * p2.getVel().dot(n) + p1.getMass() * (1 + e) * p1.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
+
+        p1.setVel(p1.getVel()-p1.getVel().dot(n)*n + vel1);
+        p2.setVel(p2.getVel()-p2.getVel().dot(n)*n + vel2);
+
+        //correct positions if the two overlap
+        // Only correct if the overlap is noticeable (slop)
+        double depth = p1.getRadius()+p2.getRadius()-(p1.getPos()-p2.getPos()).norm();
+
+        const double slop = 0.05; 
+        const double percent = 0.8; // Only correct 80% of the depth to prevent bouncy jitter
+
+        if (depth > slop) {
+            double invMass1 = 1.0 / p1.getMass();
+            double invMass2 = 1.0 / p2.getMass();
+            double sumInvMass = invMass1 + invMass2;
+
+            // Divide the depth by total inverse mass, apply percent dampening
+            Eigen::Vector2d correction = (max(depth - slop, 0.0) / sumInvMass) * percent * n;
+
+            // Push apart weighted by mass (heavy objects move less)
+            p1.setPos(p1.getPos() + invMass1 * correction);
+            p2.setPos(p2.getPos() - invMass2 * correction);
+        }
+
     }
 };

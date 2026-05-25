@@ -1,17 +1,20 @@
 #include <Eigen/Dense>
+#include <cmath>
+#include <memory>
+using namespace std;
 
 class Force_Field{
     private:
         //value of force at every point
         //possibly a formula for calculating it?
         //function definition
-        Eigen::Vector2d force;
+        const double k;
+        Eigen::Vector2d pose;
     public:
-        Force_Field(const Eigen::Vector2d& f = Eigen::Vector2d::Zero()):force(f){}
+        Force_Field(const double& constant = -1.0,const Eigen::Vector2d& pos = Eigen::Vector2d::Zero()):k(constant),pose(pos){}
 
         Eigen::Vector2d getForce(const Eigen::Vector2d& position) const{
-            //calculate force at point via given formula. maybe make 
-            //separate constructors for different fundamental forces?
+            Eigen::Vector2d force = k*(-position+pose)/(pow((-position+pose).norm(),3))
             return force;
         }
 };
