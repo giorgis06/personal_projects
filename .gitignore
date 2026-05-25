@@ -1,0 +1,11 @@
+# Compiled executables and headers
+random_walk
+*.out
+*.o
+*.gch
+
+# OS generated files
+.DS_Store
+
+# Editor directories
+.vscode/
