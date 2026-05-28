@@ -7,6 +7,18 @@
 
 using namespace std;
 
+/*
+    ****PARTICLE CLASS****
+Objects with mass, radius, position, velocity and acceleration.
+
+Methods which calculate acceleration based on the force enacted upon them by forcefields 
+(possible extension - adding a force field for every particle as a parameter, maybe in the future)
+
+Collision detection and resolution methods using a certain restitution coefficient, with tweaks to make collisions more realistic
+
+More to be added
+*/
+
 class Particle {
 private:
     // Physics State (Double precision for mathematical stability)
@@ -17,15 +29,16 @@ private:
     double mass;
     double radius;
     double restitution;
+    int name;
     
     // Visual State (SFML uses floats for rendering)
     sf::CircleShape circle;
 
 public:
-    Particle(double radius, double m = 1.0, double rest = 1.0,
+    Particle(double radius,int n, double m = 1.0, double rest = 1.0,
              const Eigen::Vector2d& position = Eigen::Vector2d::Zero(), 
              const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero())
-        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), mass(m), radius(radius),restitution(rest)
+        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), name(n), mass(m), radius(radius),restitution(rest)
     {
         // Replaced the broken printf with standard cout
         cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
@@ -47,7 +60,7 @@ public:
     //Setters
     void setPos(const Eigen::Vector2d& new_pos) { pos = new_pos; }
     void setVel(const Eigen::Vector2d& new_vel) { vel = new_vel; }
-    void applyForce(const Force_Field &force) { acc += force.getForce(pos) / mass; }
+    void applyForce(Force_Field &force) { acc += force.getForce(pos) / mass; }
 
     //Euler implicit integration update
     void time_step(double dt) {
@@ -65,8 +78,12 @@ public:
         window.draw(circle);
     }
 
+    friend bool operator!=(const Particle &p1,const Particle &p2){
+        return p1.name != p2.name;
+    }
+
     // --- Collision Detection ---
-    friend bool collision(const Particle& p1, const Particle& p2) {
+    friend bool collision(Particle& p1, Particle& p2) {
         // Eigen's squaredNorm() avoids the expensive square root operation!
         double dist_squared = (p1.pos - p2.pos).squaredNorm();
         double radius_sum = p1.radius + p2.radius;
@@ -75,7 +92,7 @@ public:
 
     // --- Collision Resolution (Math applied) ---
     friend void resolveCollision(Particle& p1, Particle& p2) {
-        if (!collision(p1, p2)) return;
+        if (!collision(p1, p2) || p1.name == p2.name) return;
         
         //Define normal vector on which collision occurs
         Eigen::Vector2d n = (p1.getPos()-p2.getPos()).normalized();
@@ -98,7 +115,7 @@ public:
         double depth = p1.getRadius()+p2.getRadius()-(p1.getPos()-p2.getPos()).norm();
 
         const double slop = 0.05; 
-        const double percent = 0.8; // Only correct 80% of the depth to prevent bouncy jitter
+        const double percent = 0.8; //only correct 80% of the depth to prevent bouncy jitter
 
         if (depth > slop) {
             double invMass1 = 1.0 / p1.getMass();
@@ -106,7 +123,7 @@ public:
             double sumInvMass = invMass1 + invMass2;
 
             // Divide the depth by total inverse mass, apply percent dampening
-            Eigen::Vector2d correction = (max(depth - slop, 0.0) / sumInvMass) * percent * n;
+            Eigen::Vector2d correction = ((depth - slop )/ sumInvMass) * percent * n;
 
             // Push apart weighted by mass (heavy objects move less)
             p1.setPos(p1.getPos() + invMass1 * correction);
