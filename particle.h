@@ -37,15 +37,14 @@ private:
 public:
     Particle(double radius,int n, double m = 1.0, double rest = 1.0,
              const Eigen::Vector2d& position = Eigen::Vector2d::Zero(), 
-             const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero())
+             const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero(),bool generation_alert = false)
         : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), name(n), mass(m), radius(radius),restitution(rest)
     {
-        // Replaced the broken printf with standard cout
-        cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
+        if(generation_alert) cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
         
         // Setup SFML visuals
         circle.setRadius(static_cast<float>(radius));
-        circle.setFillColor(sf::Color::Cyan);
+        circle.setFillColor(sf::Color::Black);
         circle.setOrigin(static_cast<float>(radius), static_cast<float>(radius));
         circle.setPosition(static_cast<float>(pos.x()), static_cast<float>(pos.y()));
     }
@@ -76,6 +75,27 @@ public:
 
     void draw(sf::RenderWindow& window) const {
         window.draw(circle);
+    }
+
+    void out_of_bounds(sf::RenderWindow& window){
+        sf::Vector2u size = window.getSize();
+        if(pos.x() + radius >= size.x){
+            setVel(getVel() + Eigen::Vector2d(-(1+restitution)*getVel().x(),0));
+            setPos(Eigen::Vector2d(size.x-radius,getPos().y()));
+        }
+        else if(pos.x()-radius <= 0){
+            // invert and lose energy based on restitution coefficient
+            setVel(getVel() + Eigen::Vector2d(-(1+restitution)*getVel().x(),0));
+            setPos(Eigen::Vector2d(radius,getPos().y()));
+        }
+        if(pos.y() + radius >= size.y){
+            setVel(getVel() + Eigen::Vector2d(0,-(1+restitution)*getVel().y()));
+            setPos(Eigen::Vector2d(getPos().x(),size.y-radius));
+        }
+        else if(pos.y() - radius <=0){
+            setVel(getVel() + Eigen::Vector2d(0,-(1+restitution)*getVel().y()));
+            setPos(Eigen::Vector2d(getPos().x(),radius));
+        }
     }
 
     friend bool operator!=(const Particle &p1,const Particle &p2){

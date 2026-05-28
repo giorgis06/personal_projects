@@ -1,5 +1,7 @@
 # Compiled executables and headers
 random_walk
+sim
+particle_simulation
 *.out
 *.o
 *.gch

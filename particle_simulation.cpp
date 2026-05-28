@@ -6,22 +6,24 @@ void simulation_step(vector<Particle>& particles,sf::RenderWindow& window,double
     
     for(auto& p : particles){
         p.time_step(dt);
+        p.out_of_bounds(window);
     }
         
-    for(auto& p : particles){
-        for(auto&q : particles){
-            resolveCollision(p,q);
-        }
+    
+    for (size_t i = 0; i < particles.size(); i++) {
+        for (size_t j = i + 1; j < particles.size(); j++) {
+            resolveCollision(particles[i], particles[j]);
     }
-
+}
     for(auto& p: particles){
         p.draw(window);
     }
 }
 
 int main(){
-    double dt = 0.01;
+    double dt = 0.01/60;
     const int N = 10;
+
     random_device rd;
     default_random_engine generator(rd());
 
@@ -36,10 +38,11 @@ int main(){
     vector<Particle> particles;
     for(int i = 0; i < N; i++){
         Eigen::Vector2d position(400+10*static_cast<float>(dist(generator)),400+10*static_cast<float>(dist(generator)));
-        Eigen::Vector2d vel(10*static_cast<float>(dist(generator)),10*static_cast<float>(dist(generator)));
-        particles.emplace_back(Particle(abs(static_cast<float>(dist(generator))),i,1.0,1.0,position,vel));
+        Eigen::Vector2d vel(30*static_cast<float>(dist(generator)),30*static_cast<float>(dist(generator)));
+        particles.emplace_back(Particle(5,i,abs(static_cast<float>(dist(generator))),
+                                        0.69,
+                                        position,vel));
     }
-
     
     while(window.isOpen()){
         sf::Event event;
@@ -49,8 +52,10 @@ int main(){
             }
         }
         window.clear(sf::Color::White);
-
-        simulation_step(particles,window,dt);
+        for(int i = 0; i < 100; i++){
+            simulation_step(particles,window,dt);
+        }
+        
         window.display();
     }
 }
