@@ -43,12 +43,15 @@ int main(){
     // generate particles with random characteristics
     vector<Particle> particles;
     for(int i = 0; i < N; i++){
-        Eigen::Vector2d position(400+10*static_cast<float>(dist(generator)),400+10*static_cast<float>(dist(generator)));
+        float r = 5.0;
+        float m = 1.0;
+        float e = 1.0;
         Eigen::Vector2d vel(30*static_cast<float>(dist(generator)),30*static_cast<float>(dist(generator)));
-        particles.emplace_back(Particle(5,i,abs(static_cast<float>(dist(generator))),
-                                        0.69,
-                                        position,vel));
+        Eigen::Vector2d pos(400+10*static_cast<float>(dist(generator)),400+10*static_cast<float>(dist(generator)));
+        particles.emplace_back(Particle(r,i,m,e,pos,vel));
     }
+
+    vector<vector<Particle*>> grid;
     
     while(window.isOpen()){
         sf::Event event;
