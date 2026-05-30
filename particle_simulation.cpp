@@ -6,6 +6,12 @@
 void simulation_step(vector<Particle>& particles,Grid<Particle>& grid,sf::RenderWindow& window,double dt = 1){
     //FORCE FIELD UPDATES ACCELERATIONS IF NEEDED
     
+    for(auto&p:particles){
+        for(auto& q: particles){
+            p.applyForce(q.getField());
+        }
+    }
+
     for(auto& p : particles){
         p.time_step(dt);
         p.out_of_bounds(window);
@@ -29,12 +35,13 @@ void simulation_step(vector<Particle>& particles,Grid<Particle>& grid,sf::Render
                 // THE PAIR WILL ONLY BE CHECKED ONCE, SAVING PROCESSING TIME
             }
         }
+        p.getField().update(p.getPos());
     }
 }
 
 int main(){
     double dt = 0.1/60;
-    const int N = 760;
+    const int N = 100;
 
     random_device rd;
     default_random_engine generator(rd());
@@ -54,9 +61,9 @@ int main(){
         cell_size = max(cell_size,5*r); //maximum particle diameter defines cell size
         float m = 1.0;
         float e = 1.0;//(float)(0.1*abs(dist(generator)));
-        Eigen::Vector2d vel(40*static_cast<float>(dist(generator)),40*static_cast<float>(dist(generator)));
+        Eigen::Vector2d vel(4*static_cast<float>(dist(generator)),4*static_cast<float>(dist(generator)));
         Eigen::Vector2d pos(400+10*static_cast<float>(dist(generator)),400+10*static_cast<float>(dist(generator)));
-        particles.emplace_back(Particle(r,m,e,pos,vel));
+        particles.emplace_back(Particle(r,m,e,pos,vel,1000000));
     }
 
     // GRID DEFINITION AND RESIZING, CEILING OF LENGTH/MAXIMUM CELL SIZE

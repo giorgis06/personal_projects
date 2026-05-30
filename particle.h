@@ -29,6 +29,8 @@ private:
     double mass;
     double radius;
     double restitution;
+
+    Force_Field F;
     
     // Visual State (SFML uses floats for rendering)
     sf::CircleShape circle;
@@ -36,11 +38,15 @@ private:
 public:
     Particle(double radius, double m = 1.0, double rest = 1.0,
              const Eigen::Vector2d& position = Eigen::Vector2d::Zero(), 
-             const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero(),bool generation_alert = false)
+             const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero(),
+             double force_constant = 1.0,bool generation_alert = false)
         : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), mass(m), radius(radius),restitution(rest)
     {
         if(generation_alert) cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
         
+        // Create force field
+        F = Force_Field(force_constant*mass,position);
+
         // Setup SFML visuals
         circle.setRadius(static_cast<float>(radius));
         circle.setFillColor(sf::Color::Black);
@@ -54,17 +60,18 @@ public:
     double getRadius() const { return radius; }
     double getRest() const { return restitution; }
     double getMass() const { return mass; }
+    Force_Field& getField() { return F; }
 
     //Setters
     void setPos(const Eigen::Vector2d& new_pos) { pos = new_pos; }
     void setVel(const Eigen::Vector2d& new_vel) { vel = new_vel; }
-    void applyForce(Force_Field &force) { acc += force.getForce(pos) / mass; }
+    void applyForce(const Force_Field &force) { acc += force.getForce(pos,mass) / mass; }
 
     //Euler implicit integration update
     void time_step(double dt) {
         vel += acc * dt;
         pos += vel * dt;
-        
+        F.update(pos);
         //Reset acceleration for next time step
         acc.setZero(); 
 
