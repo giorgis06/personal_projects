@@ -29,16 +29,15 @@ private:
     double mass;
     double radius;
     double restitution;
-    int name;
     
     // Visual State (SFML uses floats for rendering)
     sf::CircleShape circle;
 
 public:
-    Particle(double radius,int n, double m = 1.0, double rest = 1.0,
+    Particle(double radius, double m = 1.0, double rest = 1.0,
              const Eigen::Vector2d& position = Eigen::Vector2d::Zero(), 
              const Eigen::Vector2d& velocity = Eigen::Vector2d::Zero(),bool generation_alert = false)
-        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), name(n), mass(m), radius(radius),restitution(rest)
+        : pos(position), vel(velocity), acc(Eigen::Vector2d::Zero()), mass(m), radius(radius),restitution(rest)
     {
         if(generation_alert) cout << "Generated particle at (" << pos.x() << ", " << pos.y() << ").\n";
         
@@ -98,10 +97,6 @@ public:
         }
     }
 
-    friend bool operator!=(const Particle &p1,const Particle &p2){
-        return p1.name != p2.name;
-    }
-
     // --- Collision Detection ---
     friend bool collision(Particle& p1, Particle& p2) {
         // Eigen's squaredNorm() avoids the expensive square root operation!
@@ -112,23 +107,10 @@ public:
 
     // --- Collision Resolution (Math applied) ---
     friend void resolveCollision(Particle& p1, Particle& p2) {
-        if (!collision(p1, p2) || p1.name == p2.name) return;
+        if (!collision(p1, p2)) return;
         
         //Define normal vector on which collision occurs
         Eigen::Vector2d n = (p1.getPos()-p2.getPos()).normalized();
-        //Find relative velocity parallel to normal vector
-        double relVel = (p1.getVel()-p2.getVel()).dot(n);
-        
-        //If positive, then particles are moving away from each other, return;
-        if(relVel>=0) return;
-        //If negative, then collision is happening, resolve with formula and restitution coefficient
-        double e = std::min(p1.getRest(), p2.getRest());
-
-        Eigen::Vector2d vel1 = ((p1.getMass() - e * p2.getMass()) * p1.getVel().dot(n) + p2.getMass() * (1 + e) * p2.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
-        Eigen::Vector2d vel2 = ((p2.getMass() - e * p1.getMass()) * p2.getVel().dot(n) + p1.getMass() * (1 + e) * p1.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
-
-        p1.setVel(p1.getVel()-p1.getVel().dot(n)*n + vel1);
-        p2.setVel(p2.getVel()-p2.getVel().dot(n)*n + vel2);
 
         //correct positions if the two overlap
         // Only correct if the overlap is noticeable (slop)
@@ -150,5 +132,18 @@ public:
             p2.setPos(p2.getPos() - invMass2 * correction);
         }
 
+        //Find relative velocity parallel to normal vector
+        double relVel = (p1.getVel()-p2.getVel()).dot(n);
+        
+        //If positive, then particles are moving away from each other, return;
+        if(relVel>=0) return;
+        //If negative, then collision is happening, resolve with formula and restitution coefficient
+        double e = std::min(p1.getRest(), p2.getRest());
+
+        Eigen::Vector2d vel1 = ((p1.getMass() - e * p2.getMass()) * p1.getVel().dot(n) + p2.getMass() * (1 + e) * p2.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
+        Eigen::Vector2d vel2 = ((p2.getMass() - e * p1.getMass()) * p2.getVel().dot(n) + p1.getMass() * (1 + e) * p1.getVel().dot(n)) / (p1.getMass() + p2.getMass())*n;
+
+        p1.setVel(p1.getVel()-p1.getVel().dot(n)*n + vel1);
+        p2.setVel(p2.getVel()-p2.getVel().dot(n)*n + vel2);
     }
 };

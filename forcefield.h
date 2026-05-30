@@ -15,7 +15,12 @@ class Force_Field{
 
         Eigen::Vector2d getForce(const Eigen::Vector2d& position){
             //regular square law, might expand in the future to cover more potentials
-            Eigen::Vector2d force = k*(-position+pose)/(pow((-position+pose).norm(),3));
-            return force;
+            Eigen::Vector2d r = pose - position; 
+            double dist = r.norm();
+
+            // Prevent division by zero if particle is exactly at the center
+            if (dist < 0.01) return Eigen::Vector2d::Zero(); 
+
+            return k * r / (dist * dist * dist);
         }
 };
