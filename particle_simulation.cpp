@@ -18,9 +18,9 @@ void simulation_step(vector<Particle>& particles,Grid<Particle>& grid,sf::Render
     // FOR EVERY PARTICLE
     for(auto&p:particles){
         // FIND ITS ADJACENT CELLS
-        for(auto& cell:grid.getAdjacents(p)){
+        for(auto* cell:grid.getAdjacents(p)){
             // FOR EVERY CELL
-            for(auto& q: cell){
+            for(auto& q: *cell){
                 // RESOLVE THE COLLISIONS INSIDE THE CELL
                 if(&p < q) resolveCollision(p,*q);
                 // LESSER THAN TO SIMULTANEOUSLY PREVENT SELF-COLLISIONS AND

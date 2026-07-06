@@ -48,16 +48,16 @@ class Grid{
             return grid[pos.y() * cols + pos.x()];
         }
         
-        vector<vector<T*>> getAdjacents(T& element){
-            vector<vector<T*>> adj;
+        vector<vector<T*>*> getAdjacents(T& element){
+            vector<vector<T*>*> adj;
             adj.reserve(9);
-            
+
             Vector2i center = grid_position(element);
-            
+
             // Loop using x (cols) and y (rows)
             for(int x = max(0, center.x() - 1); x <= min(center.x() + 1, cols - 1); x++){
                 for(int y = max(0, center.y() - 1); y <= min(center.y() + 1, rows - 1); y++){
-                    adj.push_back(getCell(Vector2i(x, y)));
+                    adj.push_back(&getCell(Vector2i(x, y)));
                 }
             }
             return adj;
