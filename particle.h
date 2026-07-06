@@ -66,6 +66,7 @@ public:
     void setPos(const Eigen::Vector2d& new_pos) { pos = new_pos; }
     void setVel(const Eigen::Vector2d& new_vel) { vel = new_vel; }
     void applyForce(const Force_Field &force) { acc += force.getForce(pos,mass) / mass; }
+    void applyAcceleration(const Eigen::Vector2d& a) { acc += a; }
 
     //Euler implicit integration update
     void time_step(double dt) {
