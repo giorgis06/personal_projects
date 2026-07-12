@@ -11,3 +11,13 @@ particle_simulation
 
 # Editor directories
 .vscode/
+
+# Python
+inverted_pendulum/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Generated simulation outputs
+inverted_pendulum/outputs/
