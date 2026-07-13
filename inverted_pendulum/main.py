@@ -58,7 +58,9 @@ def main() -> None:
 
     if args.save_animation is not None:
         os.makedirs(os.path.dirname(args.save_animation) or ".", exist_ok=True)
-    animate_cartpole(t, Z_nl, params, save_path=args.save_animation)
+    # keep a reference alive -- FuncAnimation stops (or never renders) if it's
+    # garbage-collected before plt.show() runs the event loop
+    anim = animate_cartpole(t, Z_nl, params, save_path=args.save_animation)
 
     if args.save_plots is not None:
         os.makedirs(args.save_plots, exist_ok=True)
