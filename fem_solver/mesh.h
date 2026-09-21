@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <exception>
 
 const std::array<double,2> DOUBLE_ZERO_2D{0.0, 0.0};
 const std::array<int,3> INT_ZERO_3D{0,0,0};
@@ -86,3 +87,41 @@ class Mesh{
         const std::map<std::string,int>& tagNames() const { return Tag_Names; }
         std::size_t numBoundaryEdges() const { return Boundary_Edges.size(); }
 };
+
+struct MeshData{
+    // Raw data produced by the parser, to be validated
+
+    std::vector<std::array<double,2>> Positions_Nodes;
+    std::vector<std::array<int,3>> NID_Elements;
+    std::vector<int> Element_Tags;
+    std::vector<std::array<int,2>> Boundary_Edges;
+    std::vector<int> Edge_Tags;
+    std::map<std::string,int> Tag_Names;
+
+};
+
+MeshData parse_msh(/*path/to/.msh*/){}
+
+bool validate(MeshData& mesh_data){
+    // Validate eligibility of mesh data,
+    // Reorder node ids to match ccw convention
+    // Return true if:
+    // -> Data was valid
+    // -> Optional checks regarding chunkiness succeeded
+    // -> And more...?
+
+    // Throw an exception instead of returning true / false? 
+}
+
+Mesh load_mesh(/*path/to/.msh*/){
+    MeshData mesh = parse_msh(/*path/to/.msh*/);
+    try{
+        validate(mesh);
+        // copy mesh into the constructor of Mesh
+        // use std::move for efficiency ?
+    }
+    catch(e){
+        printf(/*nice try*/);
+    };
+    
+}
