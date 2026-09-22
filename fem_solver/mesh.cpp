@@ -3,15 +3,17 @@
 #include "gmsh.h"
 
 #include <algorithm>
-#include <iostream>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <unordered_map>
 
-using std::vector,std::array,std::map,std::string,std::pair;
 namespace fs = std::filesystem;
+
+namespace fem {
+
+using std::vector,std::array,std::map,std::string,std::pair;
 
 // Absolute floor on |signed area|: anything smaller is a collapsed
 // triangle, not a small one. Real elements are many orders above this.
@@ -346,3 +348,5 @@ void validate(MeshData& mesh_data){
 Mesh load_mesh(/*path/to/.msh*/){
     //MeshData mesh = parse_msh(/*path/to/.msh*/);
 }
+
+}   // namespace fem

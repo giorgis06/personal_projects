@@ -7,8 +7,14 @@
 #include <string>
 #include <utility>
 
-const std::array<double,2> DOUBLE_ZERO_2D{0.0, 0.0};
-const std::array<int,3> INT_ZERO_3D{0,0,0};
+namespace fem {
+
+// Inside the namespace, so these short names stay in fem and never reach the
+// global scope of whoever includes this header.
+using std::vector,std::array,std::map,std::string,std::size_t,std::move;
+
+const array<double,2> DOUBLE_ZERO_2D{0.0, 0.0};
+const array<int,3> INT_ZERO_3D{0,0,0};
 
 class Mesh{
     // The object that stores the positions of Nodes and Node IDs of
@@ -28,27 +34,27 @@ class Mesh{
     //     Consumers may therefore use det J directly, not |det J|.
 
     private:
-        std::vector<std::array<double,2>> Node_Positions;
-        std::vector<std::array<int,3>> Element_Nodes;
+        vector<array<double,2>> Node_Positions;
+        vector<array<int,3>> Element_Nodes;
 
         // Per-element region id ($PhysicalSurface). Parallel to Element_Nodes.
         // Materials (eps, mu, sigma) map tag -> values and live OUTSIDE Mesh,
         // same as BoundaryConditions. Empty when the mesh has one region.
-        std::vector<int> Element_Tags;
+        vector<int> Element_Tags;
 
         // Boundary topology. Edge_Nodes and Edge_Tags are parallel:
         // Edge_Tags[i] is the gmsh physical group id of Edge_Nodes[i].
         // Which tag means Dirichlet vs Neumann is NOT stored here -- that is
         // problem data and lives in a separate BoundaryConditions struct.
-        std::vector<std::array<int,2>> Edge_Nodes;
-        std::vector<int> Edge_Tags;
+        vector<array<int,2>> Edge_Nodes;
+        vector<int> Edge_Tags;
 
         // Tagged single nodes ($PhysicalPoint), e.g. a point charge location.
         // Point_Tags is parallel to Point_Nodes; the value carried by the tag
         // (charge, pinned potential) lives OUTSIDE Mesh, like Materials.
-        std::vector<int> Point_Nodes;
-        std::vector<int> Point_Tags;
-        std::map<std::string,int> Tag_Names;   // "wall" -> 3
+        vector<int> Point_Nodes;
+        vector<int> Point_Tags;
+        map<string,int> Tag_Names;   // "wall" -> 3
     public:
         // NOTE: member init order must match declaration order above.
         Mesh(int node_number,int element_number):
@@ -58,70 +64,72 @@ class Mesh{
 
         // Parser ctor: build the vectors locally, then move them in. A Mesh
         // built this way is never half-filled.
-        Mesh(std::vector<std::array<double,2>> positions,
-             std::vector<std::array<int,3>> elements,
-             std::vector<int> element_tags = {},
-             std::vector<std::array<int,2>> edge_nodes = {},
-             std::vector<int> edge_tags = {},
-             std::vector<int> point_nodes = {},
-             std::vector<int> point_tags = {},
-             std::map<std::string,int> tag_names = {}):
-        Node_Positions(std::move(positions)),
-        Element_Nodes(std::move(elements)),
-        Element_Tags(std::move(element_tags)),
-        Edge_Nodes(std::move(edge_nodes)),
-        Edge_Tags(std::move(edge_tags)),
-        Point_Nodes(std::move(point_nodes)),
-        Point_Tags(std::move(point_tags)),
-        Tag_Names(std::move(tag_names))
+        Mesh(vector<array<double,2>> positions,
+             vector<array<int,3>> elements,
+             vector<int> element_tags = {},
+             vector<array<int,2>> edge_nodes = {},
+             vector<int> edge_tags = {},
+             vector<int> point_nodes = {},
+             vector<int> point_tags = {},
+             map<string,int> tag_names = {}):
+        Node_Positions(move(positions)),
+        Element_Nodes(move(elements)),
+        Element_Tags(move(element_tags)),
+        Edge_Nodes(move(edge_nodes)),
+        Edge_Tags(move(edge_tags)),
+        Point_Nodes(move(point_nodes)),
+        Point_Tags(move(point_tags)),
+        Tag_Names(move(tag_names))
         {}
 
         // Read-only views. Assembly takes `const Mesh&` and goes through these.
-        const std::vector<std::array<double,2>>& nodePositions() const { return Node_Positions; }
-        const std::vector<std::array<int,3>>& elementNodes() const { return Element_Nodes; }
-        std::size_t numNodes() const { return Node_Positions.size(); }
-        std::size_t numElements() const { return Element_Nodes.size(); }
+        const vector<array<double,2>>& nodePositions() const { return Node_Positions; }
+        const vector<array<int,3>>& elementNodes() const { return Element_Nodes; }
+        size_t numNodes() const { return Node_Positions.size(); }
+        size_t numElements() const { return Element_Nodes.size(); }
 
-        const std::vector<int>& elementTags() const { return Element_Tags; }
-        const std::vector<std::array<int,2>>& edgeNodes() const { return Edge_Nodes; }
-        const std::vector<int>& edgeTags() const { return Edge_Tags; }
-        const std::vector<int>& pointNodes() const { return Point_Nodes; }
-        const std::vector<int>& pointTags() const { return Point_Tags; }
-        const std::map<std::string,int>& tagNames() const { return Tag_Names; }
-        std::size_t numEdges() const { return Edge_Nodes.size(); }
-        std::size_t numPoints() const { return Point_Nodes.size(); }
+        const vector<int>& elementTags() const { return Element_Tags; }
+        const vector<array<int,2>>& edgeNodes() const { return Edge_Nodes; }
+        const vector<int>& edgeTags() const { return Edge_Tags; }
+        const vector<int>& pointNodes() const { return Point_Nodes; }
+        const vector<int>& pointTags() const { return Point_Tags; }
+        const map<string,int>& tagNames() const { return Tag_Names; }
+        size_t numEdges() const { return Edge_Nodes.size(); }
+        size_t numPoints() const { return Point_Nodes.size(); }
 };
 
 struct MeshData{
     // Raw data produced by the parser, to be validated
 
-    std::vector<std::array<double,2>> Node_Positions;
-    std::vector<std::array<int,3>> Element_Nodes;
-    std::vector<int> Element_Tags;
-    std::vector<std::array<int,2>> Edge_Nodes;
-    std::vector<int> Edge_Tags;
-    std::vector<int> Point_Nodes;
-    std::vector<int> Point_Tags;
-    std::map<std::string,int> Tag_Names;
+    vector<array<double,2>> Node_Positions;
+    vector<array<int,3>> Element_Nodes;
+    vector<int> Element_Tags;
+    vector<array<int,2>> Edge_Nodes;
+    vector<int> Edge_Tags;
+    vector<int> Point_Nodes;
+    vector<int> Point_Tags;
+    map<string,int> Tag_Names;
 
     MeshData() = default;
 
-    // Same shape as Mesh's parser ctor: pass locals with std::move.
-    MeshData(std::vector<std::array<double,2>> positions,
-             std::vector<std::array<int,3>> elements,
-             std::vector<int> element_tags = {},
-             std::vector<std::array<int,2>> edge_nodes = {},
-             std::vector<int> edge_tags = {},
-             std::vector<int> point_nodes = {},
-             std::vector<int> point_tags = {},
-             std::map<std::string,int> tag_names = {}):
-    Node_Positions(std::move(positions)),
-    Element_Nodes(std::move(elements)),
-    Element_Tags(std::move(element_tags)),
-    Edge_Nodes(std::move(edge_nodes)),
-    Edge_Tags(std::move(edge_tags)),
-    Point_Nodes(std::move(point_nodes)),
-    Point_Tags(std::move(point_tags)),
-    Tag_Names(std::move(tag_names))
+    // Same shape as Mesh's parser ctor: pass locals with move.
+    MeshData(vector<array<double,2>> positions,
+             vector<array<int,3>> elements,
+             vector<int> element_tags = {},
+             vector<array<int,2>> edge_nodes = {},
+             vector<int> edge_tags = {},
+             vector<int> point_nodes = {},
+             vector<int> point_tags = {},
+             map<string,int> tag_names = {}):
+    Node_Positions(move(positions)),
+    Element_Nodes(move(elements)),
+    Element_Tags(move(element_tags)),
+    Edge_Nodes(move(edge_nodes)),
+    Edge_Tags(move(edge_tags)),
+    Point_Nodes(move(point_nodes)),
+    Point_Tags(move(point_tags)),
+    Tag_Names(move(tag_names))
     {}
 };
+
+}   // namespace fem

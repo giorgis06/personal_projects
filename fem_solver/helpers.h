@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+namespace fem {
+
 using std::pair,std::map,std::array,std::queue,std::vector;
 
 inline double trig_area(const array<double,2>& n1, const array<double,2>& n2, const array<double,2>& n3){
@@ -84,3 +86,5 @@ inline bool is_connected(const vector<vector<int>>& adjacency){
     }
     return reached == adjacency.size();
 }
+
+}   // namespace fem
