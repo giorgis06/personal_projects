@@ -1,12 +1,3 @@
-// TODO(elsewhere)
-//  [ ] load_msh(path) -> Mesh          (parsing only, no interpretation)
-//  [ ] make_unit_square(nx,ny) -> Mesh (Phase 1, same type)
-//  [ ] validate(mesh, quality) -> report (Euler, area sum, edge census,
-//                                         range check, degenerate elements)
-//  [ ] BoundaryConditions: tag -> (type, value) -- separate from Mesh
-//  [ ] Materials: tag -> (eps, mu, sigma) -- separate from Mesh
-//  [ ] DOF layer: do NOT assume numDofs()==numNodes() anywhere in assembly
-
 #pragma once
 
 #include <vector>
@@ -24,11 +15,11 @@ class Mesh{
     // the vertices of each element/triangle.
     //
     // INVARIANTS (enforced by validate(), assumed by everything downstream):
-    //   - every index in NID_Elements is in [0, numNodes())
+    //   - every index in Element_Nodes is in [0, numNodes())
     //   - no degenerate (zero-area) elements
     //   - all coordinates finite
     //   - Element_Tags / Edge_Tags / Point_Tags are empty, or the same length
-    //     as the array they annotate (NID_Elements / Boundary_Edges /
+    //     as the array they annotate (Element_Nodes / Edge_Nodes /
     //     Point_Nodes)
     //   - winding: every element is counter-clockwise, i.e. its signed area
     //     0.5*((x1-x0)*(y2-y0) - (x2-x0)*(y1-y0)) is > 0. Enforced by
@@ -37,19 +28,19 @@ class Mesh{
     //     Consumers may therefore use det J directly, not |det J|.
 
     private:
-        std::vector<std::array<double,2>> Positions_Nodes;
-        std::vector<std::array<int,3>> NID_Elements;
+        std::vector<std::array<double,2>> Node_Positions;
+        std::vector<std::array<int,3>> Element_Nodes;
 
-        // Per-element region id ($PhysicalSurface). Parallel to NID_Elements.
+        // Per-element region id ($PhysicalSurface). Parallel to Element_Nodes.
         // Materials (eps, mu, sigma) map tag -> values and live OUTSIDE Mesh,
         // same as BoundaryConditions. Empty when the mesh has one region.
         std::vector<int> Element_Tags;
 
-        // Boundary topology. Boundary_Edges and Edge_Tags are parallel:
-        // Edge_Tags[i] is the gmsh physical group id of Boundary_Edges[i].
+        // Boundary topology. Edge_Nodes and Edge_Tags are parallel:
+        // Edge_Tags[i] is the gmsh physical group id of Edge_Nodes[i].
         // Which tag means Dirichlet vs Neumann is NOT stored here -- that is
         // problem data and lives in a separate BoundaryConditions struct.
-        std::vector<std::array<int,2>> Boundary_Edges;
+        std::vector<std::array<int,2>> Edge_Nodes;
         std::vector<int> Edge_Tags;
 
         // Tagged single nodes ($PhysicalPoint), e.g. a point charge location.
@@ -61,8 +52,8 @@ class Mesh{
     public:
         // NOTE: member init order must match declaration order above.
         Mesh(int node_number,int element_number):
-        Positions_Nodes(node_number, DOUBLE_ZERO_2D),
-        NID_Elements(element_number, INT_ZERO_3D)
+        Node_Positions(node_number, DOUBLE_ZERO_2D),
+        Element_Nodes(element_number, INT_ZERO_3D)
         {}
 
         // Parser ctor: build the vectors locally, then move them in. A Mesh
@@ -70,15 +61,15 @@ class Mesh{
         Mesh(std::vector<std::array<double,2>> positions,
              std::vector<std::array<int,3>> elements,
              std::vector<int> element_tags = {},
-             std::vector<std::array<int,2>> boundary_edges = {},
+             std::vector<std::array<int,2>> edge_nodes = {},
              std::vector<int> edge_tags = {},
              std::vector<int> point_nodes = {},
              std::vector<int> point_tags = {},
              std::map<std::string,int> tag_names = {}):
-        Positions_Nodes(std::move(positions)),
-        NID_Elements(std::move(elements)),
+        Node_Positions(std::move(positions)),
+        Element_Nodes(std::move(elements)),
         Element_Tags(std::move(element_tags)),
-        Boundary_Edges(std::move(boundary_edges)),
+        Edge_Nodes(std::move(edge_nodes)),
         Edge_Tags(std::move(edge_tags)),
         Point_Nodes(std::move(point_nodes)),
         Point_Tags(std::move(point_tags)),
@@ -86,28 +77,28 @@ class Mesh{
         {}
 
         // Read-only views. Assembly takes `const Mesh&` and goes through these.
-        const std::vector<std::array<double,2>>& nodePositions() const { return Positions_Nodes; }
-        const std::vector<std::array<int,3>>& elementNodeIDs() const { return NID_Elements; }
-        std::size_t numNodes() const { return Positions_Nodes.size(); }
-        std::size_t numElements() const { return NID_Elements.size(); }
+        const std::vector<std::array<double,2>>& nodePositions() const { return Node_Positions; }
+        const std::vector<std::array<int,3>>& elementNodes() const { return Element_Nodes; }
+        std::size_t numNodes() const { return Node_Positions.size(); }
+        std::size_t numElements() const { return Element_Nodes.size(); }
 
         const std::vector<int>& elementTags() const { return Element_Tags; }
-        const std::vector<std::array<int,2>>& boundaryEdges() const { return Boundary_Edges; }
+        const std::vector<std::array<int,2>>& edgeNodes() const { return Edge_Nodes; }
         const std::vector<int>& edgeTags() const { return Edge_Tags; }
         const std::vector<int>& pointNodes() const { return Point_Nodes; }
         const std::vector<int>& pointTags() const { return Point_Tags; }
         const std::map<std::string,int>& tagNames() const { return Tag_Names; }
-        std::size_t numBoundaryEdges() const { return Boundary_Edges.size(); }
-        std::size_t numPointNodes() const { return Point_Nodes.size(); }
+        std::size_t numEdges() const { return Edge_Nodes.size(); }
+        std::size_t numPoints() const { return Point_Nodes.size(); }
 };
 
 struct MeshData{
     // Raw data produced by the parser, to be validated
 
-    std::vector<std::array<double,2>> Positions_Nodes;
-    std::vector<std::array<int,3>> NID_Elements;
+    std::vector<std::array<double,2>> Node_Positions;
+    std::vector<std::array<int,3>> Element_Nodes;
     std::vector<int> Element_Tags;
-    std::vector<std::array<int,2>> Boundary_Edges;
+    std::vector<std::array<int,2>> Edge_Nodes;
     std::vector<int> Edge_Tags;
     std::vector<int> Point_Nodes;
     std::vector<int> Point_Tags;
@@ -119,15 +110,15 @@ struct MeshData{
     MeshData(std::vector<std::array<double,2>> positions,
              std::vector<std::array<int,3>> elements,
              std::vector<int> element_tags = {},
-             std::vector<std::array<int,2>> boundary_edges = {},
+             std::vector<std::array<int,2>> edge_nodes = {},
              std::vector<int> edge_tags = {},
              std::vector<int> point_nodes = {},
              std::vector<int> point_tags = {},
              std::map<std::string,int> tag_names = {}):
-    Positions_Nodes(std::move(positions)),
-    NID_Elements(std::move(elements)),
+    Node_Positions(std::move(positions)),
+    Element_Nodes(std::move(elements)),
     Element_Tags(std::move(element_tags)),
-    Boundary_Edges(std::move(boundary_edges)),
+    Edge_Nodes(std::move(edge_nodes)),
     Edge_Tags(std::move(edge_tags)),
     Point_Nodes(std::move(point_nodes)),
     Point_Tags(std::move(point_tags)),
