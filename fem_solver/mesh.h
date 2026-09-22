@@ -15,7 +15,6 @@
 #include <map>
 #include <string>
 #include <utility>
-#include <exception>
 
 const std::array<double,2> DOUBLE_ZERO_2D{0.0, 0.0};
 const std::array<int,3> INT_ZERO_3D{0,0,0};
@@ -98,30 +97,20 @@ struct MeshData{
     std::vector<int> Edge_Tags;
     std::map<std::string,int> Tag_Names;
 
+    MeshData() = default;
+
+    // Same shape as Mesh's parser ctor: pass locals with std::move.
+    MeshData(std::vector<std::array<double,2>> positions,
+             std::vector<std::array<int,3>> elements,
+             std::vector<int> element_tags = {},
+             std::vector<std::array<int,2>> boundary_edges = {},
+             std::vector<int> edge_tags = {},
+             std::map<std::string,int> tag_names = {}):
+    Positions_Nodes(std::move(positions)),
+    NID_Elements(std::move(elements)),
+    Element_Tags(std::move(element_tags)),
+    Boundary_Edges(std::move(boundary_edges)),
+    Edge_Tags(std::move(edge_tags)),
+    Tag_Names(std::move(tag_names))
+    {}
 };
-
-MeshData parse_msh(/*path/to/.msh*/){}
-
-bool validate(MeshData& mesh_data){
-    // Validate eligibility of mesh data,
-    // Reorder node ids to match ccw convention
-    // Return true if:
-    // -> Data was valid
-    // -> Optional checks regarding chunkiness succeeded
-    // -> And more...?
-
-    // Throw an exception instead of returning true / false? 
-}
-
-Mesh load_mesh(/*path/to/.msh*/){
-    MeshData mesh = parse_msh(/*path/to/.msh*/);
-    try{
-        validate(mesh);
-        // copy mesh into the constructor of Mesh
-        // use std::move for efficiency ?
-    }
-    catch(e){
-        printf(/*nice try*/);
-    };
-    
-}
