@@ -43,7 +43,7 @@ MeshData parse_msh(const fs::path& path_to_msh){
 
     // Create MeshData object through gmsh parser, that will be validated before being turned into Mesh object
 
-    if(!fs::exists(path_to_msh)) throw std::runtime_error("Specified mesh path does not exist"); 
+    if(!fs::exists(path_to_msh)) throw std::runtime_error("Specified mesh path does not exist: " + path_to_msh.string());
     if(std::find(ACCEPTED_FILE_TYPES.begin(),ACCEPTED_FILE_TYPES.end(),path_to_msh.extension()) == ACCEPTED_FILE_TYPES.end()){
         throw std::runtime_error("Specified file type is not accepted. Accepted file types are: .msh, .geo");
     }
@@ -52,6 +52,8 @@ MeshData parse_msh(const fs::path& path_to_msh){
     vector<int> element_tags;
     vector<array<int,2>> boundary_edges;
     vector<int> edge_tags;
+    vector<int> point_nodes;
+    vector<int> point_tags;
     map<string,int> tag_names;
 
     gmsh::initialize();
@@ -68,7 +70,7 @@ MeshData parse_msh(const fs::path& path_to_msh){
     gmsh::model::mesh::getNodes(node_tags, coords, unused, -1, -1, false, false); // API does the parsing
 
     positions_nodes.resize(node_tags.size()); 
-    for(int i = 0; i < positions_nodes.size(); ++i){
+    for(size_t i = 0; i < positions_nodes.size(); ++i){
         positions_nodes[i] = {coords[3*i],coords[3*i+1]};
         tag_to_index[node_tags[i]] = i;
     }
@@ -104,28 +106,36 @@ MeshData parse_msh(const fs::path& path_to_msh){
 
             for(size_t k = 0; k < types.size(); ++k){
                 string name = GMSH_CODE_TO_ELEMENT_NAME.at(types[k]);
-                int node_count = GMSH_CODE_TO_NODE_COUNT.at(types[k]);
+                size_t node_count = static_cast<size_t>(GMSH_CODE_TO_NODE_COUNT.at(types[k]));
 
                 if(name == "triangle"){
-                    for(int j = 0; j < elem_tags[k].size(); ++j){
+                    for(size_t j = 0; j < elem_tags[k].size(); ++j){
                         array<int,3> nodes = {0,0,0};
-                        for(int l = 0; l < node_count; ++l){
+                        for(size_t l = 0; l < node_count; ++l){
                             nodes[l] = tag_to_index.at(elem_nodes[k][node_count*j+l]);
                         }
                         node_id_per_element.push_back(nodes);
+                        element_tags.push_back(phys_tag);
                     }
                 }
                 else if(name == "line"){
-                    for(int j = 0; j < elem_tags[k].size(); ++j){
+                    for(size_t j = 0; j < elem_tags[k].size(); ++j){
                         array<int,2> nodes = {0,0};
-                        for(int l = 0; l < node_count; ++l){
+                        for(size_t l = 0; l < node_count; ++l){
                             nodes[l] = tag_to_index.at(elem_nodes[k][node_count*j+l]);
                         }
                         boundary_edges.push_back(nodes);
+                        edge_tags.push_back(phys_tag);
+                    }
+                }
+                else if(name == "point"){
+                    for(size_t j = 0; j < elem_tags[k].size(); ++j){
+                        point_nodes.push_back(tag_to_index.at(elem_nodes[k][j]));
+                        point_tags.push_back(phys_tag);
                     }
                 }
                 else{
-                    throw(std::runtime_error("Unsupported element: " + name));
+                    throw std::runtime_error("Unsupported element: " + name + " (gmsh code " + std::to_string(types[k]) + ")");
                 }
             }
         }
@@ -138,6 +148,8 @@ MeshData parse_msh(const fs::path& path_to_msh){
                     std::move(element_tags),
                     std::move(boundary_edges),
                     std::move(edge_tags),
+                    std::move(point_nodes),
+                    std::move(point_tags),
                     std::move(tag_names));
 }
 

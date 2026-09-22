@@ -27,8 +27,9 @@ class Mesh{
     //   - every index in NID_Elements is in [0, numNodes())
     //   - no degenerate (zero-area) elements
     //   - all coordinates finite
-    //   - Element_Tags / Edge_Tags are empty, or the same length as the
-    //     array they annotate (NID_Elements / Boundary_Edges)
+    //   - Element_Tags / Edge_Tags / Point_Tags are empty, or the same length
+    //     as the array they annotate (NID_Elements / Boundary_Edges /
+    //     Point_Nodes)
     //   - winding: every element is counter-clockwise, i.e. its signed area
     //     0.5*((x1-x0)*(y2-y0) - (x2-x0)*(y1-y0)) is > 0. Enforced by
     //     validate() swapping two indices where it is negative. Costs no
@@ -50,6 +51,12 @@ class Mesh{
         // problem data and lives in a separate BoundaryConditions struct.
         std::vector<std::array<int,2>> Boundary_Edges;
         std::vector<int> Edge_Tags;
+
+        // Tagged single nodes ($PhysicalPoint), e.g. a point charge location.
+        // Point_Tags is parallel to Point_Nodes; the value carried by the tag
+        // (charge, pinned potential) lives OUTSIDE Mesh, like Materials.
+        std::vector<int> Point_Nodes;
+        std::vector<int> Point_Tags;
         std::map<std::string,int> Tag_Names;   // "wall" -> 3
     public:
         // NOTE: member init order must match declaration order above.
@@ -65,12 +72,16 @@ class Mesh{
              std::vector<int> element_tags = {},
              std::vector<std::array<int,2>> boundary_edges = {},
              std::vector<int> edge_tags = {},
+             std::vector<int> point_nodes = {},
+             std::vector<int> point_tags = {},
              std::map<std::string,int> tag_names = {}):
         Positions_Nodes(std::move(positions)),
         NID_Elements(std::move(elements)),
         Element_Tags(std::move(element_tags)),
         Boundary_Edges(std::move(boundary_edges)),
         Edge_Tags(std::move(edge_tags)),
+        Point_Nodes(std::move(point_nodes)),
+        Point_Tags(std::move(point_tags)),
         Tag_Names(std::move(tag_names))
         {}
 
@@ -83,8 +94,11 @@ class Mesh{
         const std::vector<int>& elementTags() const { return Element_Tags; }
         const std::vector<std::array<int,2>>& boundaryEdges() const { return Boundary_Edges; }
         const std::vector<int>& edgeTags() const { return Edge_Tags; }
+        const std::vector<int>& pointNodes() const { return Point_Nodes; }
+        const std::vector<int>& pointTags() const { return Point_Tags; }
         const std::map<std::string,int>& tagNames() const { return Tag_Names; }
         std::size_t numBoundaryEdges() const { return Boundary_Edges.size(); }
+        std::size_t numPointNodes() const { return Point_Nodes.size(); }
 };
 
 struct MeshData{
@@ -95,6 +109,8 @@ struct MeshData{
     std::vector<int> Element_Tags;
     std::vector<std::array<int,2>> Boundary_Edges;
     std::vector<int> Edge_Tags;
+    std::vector<int> Point_Nodes;
+    std::vector<int> Point_Tags;
     std::map<std::string,int> Tag_Names;
 
     MeshData() = default;
@@ -105,12 +121,16 @@ struct MeshData{
              std::vector<int> element_tags = {},
              std::vector<std::array<int,2>> boundary_edges = {},
              std::vector<int> edge_tags = {},
+             std::vector<int> point_nodes = {},
+             std::vector<int> point_tags = {},
              std::map<std::string,int> tag_names = {}):
     Positions_Nodes(std::move(positions)),
     NID_Elements(std::move(elements)),
     Element_Tags(std::move(element_tags)),
     Boundary_Edges(std::move(boundary_edges)),
     Edge_Tags(std::move(edge_tags)),
+    Point_Nodes(std::move(point_nodes)),
+    Point_Tags(std::move(point_tags)),
     Tag_Names(std::move(tag_names))
     {}
 };
