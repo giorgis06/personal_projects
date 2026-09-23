@@ -163,15 +163,6 @@ MeshData parse_msh(const fs::path& path_to_msh){
 }
 
 void validate(MeshData& mesh_data){
-    // Validate eligibility of mesh data,
-    // Reorder node ids to match ccw convention
-    // Return true if:
-    // -> Data was valid
-    // -> Optional checks regarding chunkiness succeeded
-    // -> And more...?
-
-    // Throw an exception instead of returning true / false? 
-
     // CHECK EMPTY
 
     if(mesh_data.Element_Nodes.empty() || mesh_data.Node_Positions.empty()) throw(std::runtime_error(fault_message(MeshFault::EMPTY_MESH)));
@@ -345,8 +336,22 @@ void validate(MeshData& mesh_data){
     
 }
 
-Mesh load_mesh(/*path/to/.msh*/){
-    //MeshData mesh = parse_msh(/*path/to/.msh*/);
+Mesh load_mesh(const fs::path& path_to_msh){
+    
+    // Parse
+    MeshData mesh = parse_msh(path_to_msh);
+    // Validate
+    validate(mesh);
+    // Load
+    return Mesh(std::move(mesh.Node_Positions),
+                std::move(mesh.Element_Nodes),
+                std::move(mesh.Element_Tags),
+                std::move(mesh.Edge_Nodes),
+                std::move(mesh.Edge_Tags),
+                std::move(mesh.Point_Nodes),
+                std::move(mesh.Point_Tags),
+                std::move(mesh.Tag_Names)
+    );
 }
 
 }   // namespace fem

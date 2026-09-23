@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <filesystem>
 #include <utility>
 
 namespace fem {
@@ -131,5 +132,10 @@ struct MeshData{
     Tag_Names(move(tag_names))
     {}
 };
+
+MeshData parse_msh(const std::filesystem::path& path_to_msh);
+void validate(MeshData& mesh_data);
+Mesh load_mesh(const std::filesystem::path& path_to_msh);
+
 
 }   // namespace fem

@@ -101,6 +101,16 @@ works, and results are viewable in ParaView.
 Per-element `eps` via `Element_Tags` + a `Materials` lookup. The assembly loop
 barely changes: one coefficient multiplying the local matrix.
 
+**Write the local matrix as `K_e = A * B^T eps B`** from the start, with `eps` a
+2x2 and `eps = eps_scalar * I` for isotropic materials. `B` is the 2x3 of P1
+basis gradients. Anisotropic materials then cost nothing later: the table stores
+3 doubles per tag (symmetric) instead of 1, and nothing else changes. `Mesh` is
+untouched either way, since tags map to whatever you like. Caveats if you go
+there: `eps` must stay symmetric positive definite, or CG no longer applies
+(non-symmetric `eps`, e.g. magnetized plasma, needs BiCGSTAB/GMRES); `D = eps E`
+in post-processing becomes a matrix-vector product; and `eps` varying *inside*
+an element would need real quadrature, while constant-per-region stays exact.
+
 Two things specific to EM that arrive here:
 - **The mesh must conform to material interfaces** — element edges lie *along*
   the boundary between two `eps` regions, never across it. gmsh does this if the
