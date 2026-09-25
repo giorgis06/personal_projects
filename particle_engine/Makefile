@@ -6,7 +6,7 @@ LDLIBS := -lsfml-graphics -lsfml-window -lsfml-system
 
 all: sim random_walk
 
-sim: particle_simulation.cpp particle.h grid.h forcefield.h
+sim: particle_simulation.cpp particle.h grid.h forcefield.h barnes_hut.h
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDLIBS)
 
 random_walk: random_walk.cpp
