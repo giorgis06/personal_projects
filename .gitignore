@@ -18,3 +18,15 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+
+# fem_solver build outputs and generated meshes
+fem_solver/fem
+fem_solver/fem_dbg
+*.msh
+
+# Profiler dumps
+*.nsys-rep
+*.sqlite
+
+# Editor workspace
+*.code-workspace
