@@ -240,9 +240,9 @@ void validate(MeshData& mesh_data){
 
     for(size_t e = 0; e < mesh_data.Element_Nodes.size(); ++e){
         auto& element = mesh_data.Element_Nodes[e];
-        const double area = trig_area(mesh_data.Node_Positions[element[0]],
-                                      mesh_data.Node_Positions[element[1]],
-                                      mesh_data.Node_Positions[element[2]]);
+        const double area = trig_area({mesh_data.Node_Positions[element[0]],
+                                       mesh_data.Node_Positions[element[1]],
+                                       mesh_data.Node_Positions[element[2]]});
         if(std::abs(area) < TOLERANCE_ABSOLUTE_TRIG_AREA){
             throw std::runtime_error(fault_message(MeshFault::DEGENERATE_ELEMENT,
                 " " + std::to_string(e) + ", area " + std::to_string(area)));

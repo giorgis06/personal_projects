@@ -12,8 +12,8 @@ namespace fem {
 
 using std::pair,std::map,std::array,std::queue,std::vector;
 
-inline double trig_area(const array<double,2>& n1, const array<double,2>& n2, const array<double,2>& n3){
-    return 0.5*((n2[0]-n1[0])*(n3[1]-n1[1]) - (n3[0]-n1[0])*(n2[1]-n1[1]));
+inline double trig_area(const array<array<double,2>,3>& n){
+    return 0.5*((n[1][0]-n[0][0])*(n[2][1]-n[0][1]) - (n[2][0]-n[0][0])*(n[1][1]-n[0][1]));
 }
 
 // Dual graph of a simplex (triangle, tetrahedron) mesh: one vertex per element, one edge per facet
@@ -85,6 +85,21 @@ inline bool is_connected(const vector<vector<int>>& adjacency){
         }
     }
     return reached == adjacency.size();
+}
+
+// Gradients of the three P1 hat functions on triangle T (constant over T).
+// grads[i] = ∇φ_i = (b_i, c_i). Assumes counter-clockwise nodes (positive area).
+inline array<array<double,2>,3> hat_gradients(const array<array<double,2>,3>& T){
+    double area = trig_area(T);
+    array<array<double,2>,3> grads;
+
+    for(int i = 0; i < 3; ++i){
+        int j = (i+1) % 3;   // the other two nodes, in CCW order
+        int k = (i+2) % 3;
+        grads[i][0] = (T[j][1] - T[k][1]) / (2*area);   // b_i
+        grads[i][1] = (T[k][0] - T[j][0]) / (2*area);   // c_i
+    }
+    return grads;
 }
 
 }   // namespace fem
