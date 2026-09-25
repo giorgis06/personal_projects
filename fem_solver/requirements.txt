@@ -1,0 +1,9 @@
+# Python-side tooling for the FEM solver.
+# The solver itself is C++/CUDA; this venv is for meshing, validation and visualisation.
+
+numpy>=2.0          # array backbone
+scipy>=1.14         # sparse oracle: spsolve / cg to validate C++ assembly + solver
+matplotlib>=3.9     # tripcolor / tricontourf for 2D scalar fields
+meshio>=5.3         # read gmsh .msh, write VTK .vtu (cross-check the C++ writer)
+pytest>=8.0         # convergence tests (method of manufactured solutions)
+gmsh==4.15.2        # mesher + Python API; wheel bundles the binary (newer than apt's 4.8)
