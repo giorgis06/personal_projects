@@ -2,6 +2,7 @@
 #include "solver/electrostatics/assembly.h"
 
 #include <cmath>
+#include <numeric>
 #include <set>
 
 using namespace fem;
@@ -121,6 +122,61 @@ TEST_CASE("assembly: two materials, structure"){
     const size_t n = mesh.numNodes();
     PoissonProblem p{std::move(mesh), {{10, {{4,4,0}, {}, {}}}, {11, {{1,1,0}, {}, {}}}}, nullptr, {}};
     check_structure(assemble_stiffness(p, CENTROID), n);
+}
+
+// ---- load vector -------------------------------------------------------------
+
+// Degree-2 rule (points at (2/3,1/6,1/6) and permutations, equal weights):
+// exact for quadratics, which f·φ_i is when f is linear.
+
+static double dot(const vector<double>& a, const vector<double>& b){
+    double s = 0.0;
+    for(size_t i = 0; i < a.size(); ++i) s += a[i] * b[i];
+    return s;
+}
+
+TEST_CASE("load: single triangle, f = 1 gives area/3 per node"){
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, [](double, double){ return 1.0; }, {}};
+    vector<double> b = assemble_load(p, CENTROID);
+
+    REQUIRE(b.size() == 3);
+    for(double bi : b) CHECK(bi == Approx(0.5 / 3));
+}
+
+TEST_CASE("load: f = 1 sums to the total area"){
+    // The φ_i sum to 1 everywhere, so Σ b_i = ∫ f
+    auto ones = [](double, double){ return 1.0; };
+
+    PoissonProblem square{load_mesh("tests/data/square.geo"), {{10, {{1,1,0}, {}, {}}}}, ones, {}};
+    vector<double> b = assemble_load(square, CENTROID);
+    CHECK(b.size() == square.mesh.numNodes());
+    CHECK(std::accumulate(b.begin(), b.end(), 0.0) == Approx(1.0));
+
+    PoissonProblem two{load_mesh("tests/data/two_materials.geo"),
+                       {{10, {{4,4,0}, {}, {}}}, {11, {{1,1,0}, {}, {}}}}, ones, {}};
+    b = assemble_load(two, CENTROID);
+    CHECK(std::accumulate(b.begin(), b.end(), 0.0) == Approx(2.0));
+}
+
+TEST_CASE("load: f = x tested against u = y gives the integral of x*y"){
+    // For any nodal vector u, b·u = Σ_i u_i ∫ f φ_i = ∫ f · (Σ_i u_i φ_i).
+    // With u_i = y_i the sum Σ u_i φ_i reproduces y exactly (P1 is exact for linears),
+    // so b·u = ∫_[0,1]² x y = 1/4. This weights every entry of b by its node's y,
+    // so a single misplaced or mis-scaled entry shows up, unlike a plain sum.
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, [](double x, double){ return x; }, {}};
+
+    vector<double> u(positions.size());
+    for(size_t i = 0; i < u.size(); ++i) u[i] = positions[i][1];
+
+    // x·φ_i is quadratic, so the degree-2 rule makes this exact
+    CHECK(dot(assemble_load(p, DEGREE_2), u) == Approx(0.25).epsilon(1e-12));
+
+    // The centroid rule is only exact for linears: close, but not exact
+    const double centroid = dot(assemble_load(p, CENTROID), u);
+    CHECK(centroid == Approx(0.25).epsilon(1e-2));
 }
 
 TEST_CASE("assembly: patch test, K u = 0 at interior nodes for linear u"){

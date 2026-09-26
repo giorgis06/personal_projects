@@ -12,6 +12,9 @@ particle_simulation
 # Editor directories
 .vscode/
 
+# venvs
+*.venv/
+
 # Python
 fem_solver/.venv/
 __pycache__/
@@ -26,6 +29,7 @@ fem_solver/run_tests
 # Scratch geometries at the project root; test fixtures in tests/data/ stay tracked
 fem_solver/*.geo
 *.msh
+fem_solver/meshes
 
 # Profiler dumps
 *.nsys-rep
@@ -33,3 +37,6 @@ fem_solver/*.geo
 
 # Editor workspace
 *.code-workspace
+
+# Inverted Pendulum work
+inverted_pendulum
