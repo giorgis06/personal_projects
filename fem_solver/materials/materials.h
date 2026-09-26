@@ -6,7 +6,7 @@
 namespace fem{
 
 struct Material{
-    std::array<double,3> EPSILON;
+    std::array<double,3> EPSILON; // exx,eyy,exy
     std::array<double,3> MU;
     std::array<double,3> SIGMA;
 };

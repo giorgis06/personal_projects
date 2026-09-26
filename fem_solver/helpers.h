@@ -102,4 +102,19 @@ inline array<array<double,2>,3> hat_gradients(const array<array<double,2>,3>& T)
     return grads;
 }
 
+inline array<double,2> symmetric_mat_vec(const array<double,3>& matrix, const array<double,2>& vector){
+    
+    // Assumed 2x2 symmetric tensor {axx,ayy,axy}
+    
+    array<double,2> result = { 0.0 , 0.0 };
+    result[0] += matrix[0]*vector[0] + matrix[2]*vector[1];
+    result[1] += matrix[2]*vector[0] + matrix[1]*vector[1];
+
+    return result;
+}
+
+inline double dot_prod_2d(const array<double,2>& vec1,const array<double,2>& vec2){
+    return vec1[0]*vec2[0] + vec1[1]*vec2[1];
+}
+
 }   // namespace fem
