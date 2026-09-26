@@ -22,6 +22,9 @@ __pycache__/
 # fem_solver build outputs and generated meshes
 fem_solver/fem
 fem_solver/fem_dbg
+fem_solver/run_tests
+# Scratch geometries at the project root; test fixtures in tests/data/ stay tracked
+fem_solver/*.geo
 *.msh
 
 # Profiler dumps
