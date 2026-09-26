@@ -52,6 +52,29 @@ TEST_CASE("symmetric_mat_vec: (xx, yy, xy) ordering"){
     CHECK(r[1] == Approx(1*3 + 5*4));
 }
 
+TEST_CASE("hat_values: nodal property, partition of unity, linear reproduction"){
+    array<array<double,2>,3> T = {{{0.3,0.1},{2.0,0.5},{0.7,1.9}}};
+    auto g = hat_gradients(T);
+
+    // φ_i(p_j) = 1 if i == j, else 0
+    for(int j = 0; j < 3; ++j){
+        auto phi = hat_values(T, g, T[j][0], T[j][1]);
+        for(int i = 0; i < 3; ++i){
+            CHECK(phi[i] == Approx(i == j ? 1.0 : 0.0).epsilon(1e-12));
+        }
+    }
+
+    // At an arbitrary interior point: Σ φ_i = 1 and Σ φ_i p_i = (x,y)
+    const double x = 0.9, y = 0.8;
+    auto phi = hat_values(T, g, x, y);
+    CHECK(phi[0] + phi[1] + phi[2] == Approx(1.0));
+    CHECK(phi[0]*T[0][0] + phi[1]*T[1][0] + phi[2]*T[2][0] == Approx(x));
+    CHECK(phi[0]*T[0][1] + phi[1]*T[1][1] + phi[2]*T[2][1] == Approx(y));
+
+    // Inside the triangle, every φ_i is in [0,1]
+    for(double p : phi){ CHECK(p >= 0.0); CHECK(p <= 1.0); }
+}
+
 TEST_CASE("dot_prod_2d"){
     CHECK(dot_prod_2d({1.0, 2.0}, {3.0, -4.0}) == Approx(-5));
 }

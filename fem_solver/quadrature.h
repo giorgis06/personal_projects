@@ -21,6 +21,8 @@ namespace fem{
     };
 
     const TriQuadRule CENTROID = { {{1.0/3, 1.0/3, 1.0/3}}, {1.0} };
+    const TriQuadRule DEGREE_2 = {{{2.0/3, 1.0/6, 1.0/6}, {1.0/6, 2.0/3, 1.0/6}, {1.0/6, 1.0/6, 2.0/3}},
+                                     {1.0/3, 1.0/3, 1.0/3}};
 
     struct EdgeQuadRule {
         std::vector<double> T;        // parameter in [0,1], x = (1-t) p0 + t p1

@@ -38,4 +38,32 @@ namespace fem{
         return to_csr(global_stiffness,problem.mesh.numNodes());
     }
 
+    inline vector<double> assemble_load(const PoissonProblem& problem, const TriQuadRule& tri_quad_rule){
+        vector<double> load_vector(problem.mesh.numNodes(),0.0);
+
+        for(size_t e = 0; e < problem.mesh.numElements(); ++e){
+            array<array<double,2>,3> coords;
+            array<int,3> element = problem.mesh.elementNodes()[e];
+
+            for(size_t i = 0; i < element.size(); ++i){
+                coords[i] = problem.mesh.nodePositions()[element[i]];
+            }
+
+            const auto grads = hat_gradients(coords); 
+
+            for(size_t i = 0; i < 3; ++i){
+                auto f_times_phi_i = [&](double x,double y){
+                    const array<double,3> hat_value = hat_values(coords,grads,x,y);
+                    return problem.f(x,y) * hat_value[i];
+                };
+
+                // b_i += b(loc2glb(i) == element[i]) over element e;
+
+                load_vector[element[i]] += triangle_quadrature(tri_quad_rule,coords,f_times_phi_i);
+            }
+        }
+        return load_vector;
+    }
+
+
 } // namespace fem
