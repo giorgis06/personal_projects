@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <algorithm>
+#include <stdexcept>
+#include <string> 
 
 namespace fem{
 
@@ -62,6 +64,25 @@ inline CSR to_csr(vector<Triplet> triplets, int n){
     }
 
     return K;
+}
+
+inline CSR add_csr(const CSR& A, const CSR& B){
+    if(A.n != B.n) throw std::runtime_error("In add_csr: Sparse matrices are not of the same dimension, (dimA,dimB) = (" + std::to_string(A.n) + ", " +std::to_string(B.n) +")");
+    vector<Triplet> sum; 
+    sum.reserve(A.values.size() + B.values.size());
+
+    for(int i = 0; i < A.n; ++i){
+        for(int j = A.row_ptr[i]; j < A.row_ptr[i+1]; ++j){
+            sum.push_back({i,A.col_idx[j],A.values[j]});
+        }
+        for(int j = B.row_ptr[i]; j < B.row_ptr[i+1]; ++j){
+            sum.push_back({i,B.col_idx[j],B.values[j]});
+        }
+    }
+
+    // SLOW VARIANT, SORTS AGAIN O(nnz*lognnz) , CHANGE FOR TIME VARYING
+
+    return to_csr(std::move(sum),A.n);
 }
 
 }
