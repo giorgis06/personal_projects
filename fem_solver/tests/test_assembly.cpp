@@ -1,6 +1,7 @@
 #include "doctest.h"
 #include "solver/electrostatics/assembly.h"
 
+#include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <set>
@@ -346,4 +347,51 @@ TEST_CASE("r: all-Neumann unit square, Σr = perimeter and r·y = ∫ x y ds"){
     vector<double> y(mesh.numNodes());
     for(size_t i = 0; i < y.size(); ++i) y[i] = positions[i][1];
     CHECK(dot(assemble_r(p2, GAUSS_2), y) == Approx(1.0));
+}
+
+// ---- Dirichlet / free node split ---------------------------------------------
+
+TEST_CASE("node split: every node gets exactly one role, Dirichlet wins at corners"){
+    // Left side (tag 4) Dirichlet, the rest Neumann. The interior is untagged.
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    auto zero = [](double, double){ return 0.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, zero, {}}}, {2, {BCType::Neumann, zero, {}}},
+                      {3, {BCType::Neumann, zero, {}}}, {4, {BCType::Dirichlet, zero, {}}}}};
+
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    const size_t n = p.mesh.numNodes();
+    REQUIRE(g2f.size() == n);
+    REQUIRE(g2d.size() == n);
+
+    std::set<int> free_ids, dir_ids;
+    for(size_t i = 0; i < n; ++i){
+        CAPTURE(i);
+        CHECK(((g2f[i] >= 0) != (g2d[i] >= 0)));                     // exactly one role
+        if(g2f[i] >= 0) free_ids.insert(g2f[i]);
+        if(g2d[i] >= 0) dir_ids.insert(g2d[i]);
+
+        const bool on_left = std::abs(positions[i][0]) < 1e-12;
+        CHECK((g2d[i] >= 0) == on_left);                              // Dirichlet iff on x = 0
+    }
+
+    // Indices are 0..count-1 with no gaps or repeats
+    const size_t nF = std::count_if(g2f.begin(), g2f.end(), [](int v){ return v >= 0; });
+    const size_t nD = std::count_if(g2d.begin(), g2d.end(), [](int v){ return v >= 0; });
+    CHECK(nF + nD == n);
+    CHECK(free_ids.size() == nF);
+    CHECK(dir_ids.size() == nD);
+    CHECK(*free_ids.rbegin() == static_cast<int>(nF) - 1);
+    CHECK(*dir_ids.rbegin() == static_cast<int>(nD) - 1);
+}
+
+TEST_CASE("node split: tags without a BC are skipped, no BCs means all free"){
+    // Edge tag 7 has no entry in bcs, e.g. a material interface
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1}}, {7});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr, {}};
+
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    CHECK(g2f == vector<int>{0,1,2});
+    CHECK(g2d == vector<int>{-1,-1,-1});
 }

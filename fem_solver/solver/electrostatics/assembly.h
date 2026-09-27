@@ -124,4 +124,26 @@ namespace fem{
         return r;
     }
 
+    inline array<vector<int>,2> general2free_dirichlet(const PoissonProblem& problem){
+        const Mesh& m = problem.mesh;
+        vector<int> g2f(m.numNodes(),-1);
+        vector<int> g2d(m.numNodes(),-1);
+        // Parse the nodes. If free, map id to free id
+        // If Dirichlet map id to dirichlet id 
+
+        int counter_free = 0,counter_dir = 0;
+        for(size_t iEdge = 0; iEdge < m.numEdges(); iEdge++){
+            auto it = problem.bcs.find(m.edgeTags()[iEdge]); // tags without a BC (e.g. material interfaces) are skipped
+            if(it != problem.bcs.end() && it->second.type == BCType::Dirichlet){
+                if(g2d[m.edgeNodes()[iEdge][0]] == -1) g2d[m.edgeNodes()[iEdge][0]] = counter_dir++;
+                if(g2d[m.edgeNodes()[iEdge][1]] == -1) g2d[m.edgeNodes()[iEdge][1]] = counter_dir++;
+            }
+        }
+        for(size_t iNode = 0; iNode < m.numNodes(); iNode++){
+            if(g2d[iNode] == -1) g2f[iNode] = counter_free++;
+        }
+
+        return {std::move(g2f),std::move(g2d)};
+    }
+
 } // namespace fem
