@@ -69,3 +69,59 @@ TEST_CASE("add_csr: adding an empty matrix changes nothing"){
 TEST_CASE("add_csr: mismatched sizes throw"){
     CHECK_THROWS_AS(add_csr(to_csr({}, 3), to_csr({}, 4)), std::runtime_error);
 }
+
+//     [ 1  2  0  3 ]
+// M = [ 2  4  5  0 ]
+//     [ 0  5  6  7 ]
+//     [ 3  0  7  8 ]
+
+static CSR four_by_four(){
+    return to_csr({{0,0,1},{0,1,2},{0,3,3},
+                   {1,0,2},{1,1,4},{1,2,5},
+                   {2,1,5},{2,2,6},{2,3,7},
+                   {3,0,3},{3,2,7},{3,3,8}}, 4);
+}
+
+TEST_CASE("submatrix: drop index 1, keep 0, 2, 3"){
+    //  [ 1  0  3 ]
+    //  [ 0  6  7 ]
+    //  [ 3  7  8 ]
+    CSR S = extract_principal_submatrix(four_by_four(), {0,-1,1,2});
+
+    CHECK(S.n == 3);
+    CHECK(S.values  == vector<double>{1, 3, 6, 7, 3, 7, 8});
+    CHECK(S.col_idx == vector<int>{0, 2, 1, 2, 0, 1, 2});
+    CHECK(S.row_ptr == vector<int>{0, 2, 4, 7});
+}
+
+TEST_CASE("submatrix: the map also renumbers, not only filters"){
+    // New 0 = old 2, new 1 = old 3, new 2 = old 0
+    //  [ 6  7  0 ]
+    //  [ 7  8  3 ]
+    //  [ 0  3  1 ]
+    CSR S = extract_principal_submatrix(four_by_four(), {2,-1,0,1});
+
+    CHECK(S.n == 3);
+    CHECK(S.values  == vector<double>{6, 7, 7, 8, 3, 3, 1});
+    CHECK(S.col_idx == vector<int>{0, 1, 0, 1, 2, 1, 2});
+    CHECK(S.row_ptr == vector<int>{0, 2, 5, 7});
+}
+
+TEST_CASE("submatrix: keep everything gives M back, keep nothing gives 0x0"){
+    const CSR M = four_by_four();
+
+    CSR all = extract_principal_submatrix(M, {0,1,2,3});
+    CHECK(all.n == 4);
+    CHECK(all.values  == M.values);
+    CHECK(all.col_idx == M.col_idx);
+    CHECK(all.row_ptr == M.row_ptr);
+
+    CSR none = extract_principal_submatrix(M, {-1,-1,-1,-1});
+    CHECK(none.n == 0);
+    CHECK(none.values.empty());
+    CHECK(none.row_ptr == vector<int>{0});
+}
+
+TEST_CASE("submatrix: map of the wrong size throws"){
+    CHECK_THROWS_AS(extract_principal_submatrix(four_by_four(), {0,1,2}), std::runtime_error);
+}

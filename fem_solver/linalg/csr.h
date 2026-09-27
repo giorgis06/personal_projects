@@ -85,4 +85,24 @@ inline CSR add_csr(const CSR& A, const CSR& B){
     return to_csr(std::move(sum),A.n);
 }
 
+
+inline CSR extract_principal_submatrix(const CSR& A, 
+                                       const vector<int>& map){
+    if(map.size() != static_cast<size_t>(A.n)) throw std::runtime_error("In extract_principal_submatrix: index map and matrix are not of the same dimension, (dimMap,dimA) = (" + std::to_string(map.size()) + ", " + std::to_string(A.n) + ")");
+    vector<Triplet> triplets;
+
+    // map[i] == -1 -> index is red, map[i] != -1 index is green
+    // this function creates a submatrix which contains only green-green elements
+
+    int dim_block = 0;
+    for(size_t i = 0; i < map.size(); ++i) if(map[i] != -1) dim_block++;
+
+    for(size_t r = 0; r < A.n; ++r){
+        for(size_t j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
+            if(map[r] != -1 && map[A.col_idx[j]] != -1) triplets.push_back({map[r],map[A.col_idx[j]],A.values[j]});
+        }
+    }
+    return to_csr(std::move(triplets),dim_block);
+}
+
 }
