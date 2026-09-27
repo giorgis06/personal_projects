@@ -38,6 +38,38 @@ namespace fem{
         return to_csr(global_stiffness,problem.mesh.numNodes());
     }
 
+    inline CSR assemble_R(const PoissonProblem& problem, const EdgeQuadRule& edge_quad_rule){
+        vector<Triplet> R;
+        for(size_t e = 0; e < problem.mesh.numEdges(); ++e){
+            array<array<double,2>,2> coords;
+            array<int,2> edge = problem.mesh.edgeNodes()[e];
+            int edge_tag = problem.mesh.edgeTags()[e];
+
+            for(size_t i = 0; i < edge.size(); ++i){ // Get coordinates of edge nodes
+                coords[i] = problem.mesh.nodePositions()[edge[i]];
+            } 
+            
+            const auto& bc = problem.bcs.at(edge_tag); // ONLY ROBIN CONDITIONS GET KAPPA
+            for(size_t i = 0; i < edge.size(); ++i){ // Iterate over possible combinations of edge nodes
+                for(size_t j = 0; j < edge.size(); ++j){
+                    if(bc.type == BCType::Robin){
+                        auto k_times_phi_i_times_phi_j = [&](double x,double y, double t){
+                            auto phi = hat_values_on_edge(t);
+                            return bc.kappa(x,y) * phi[i] * phi[j]; // kappa * phi_i * phi_j   
+                        };
+                        Triplet R_ij = {edge[i],edge[j],edge_quadrature(edge_quad_rule,coords,k_times_phi_i_times_phi_j)};
+                        R.push_back(R_ij);
+                    }
+                    else{
+                        continue;
+                    }
+                }
+            }            
+        }
+        
+        return to_csr(std::move(R),problem.mesh.numNodes());
+    }
+
     inline vector<double> assemble_load(const PoissonProblem& problem, const TriQuadRule& tri_quad_rule){
         vector<double> load_vector(problem.mesh.numNodes(),0.0);
 
@@ -51,7 +83,7 @@ namespace fem{
 
             const auto grads = hat_gradients(coords); 
 
-            for(size_t i = 0; i < 3; ++i){
+            for(size_t i = 0; i < element.size(); ++i){
                 auto f_times_phi_i = [&](double x,double y){
                     const array<double,3> hat_value = hat_values(coords,grads,x,y);
                     return problem.f(x,y) * hat_value[i];
@@ -65,5 +97,31 @@ namespace fem{
         return load_vector;
     }
 
+    inline vector<double> assemble_r(const PoissonProblem& problem, const EdgeQuadRule& edge_quad_rule){
+        vector<double> r(problem.mesh.numNodes(),0.0);
+        
+        for(size_t e = 0; e < problem.mesh.numEdges(); ++e){
+            array<array<double,2>,2> coords;
+            array<int,2> edge = problem.mesh.edgeNodes()[e];
+            int edge_tag = problem.mesh.edgeTags()[e];
+
+            for(size_t i = 0; i < edge.size(); ++i){
+                coords[i] = problem.mesh.nodePositions()[edge[i]];
+            }
+
+            const auto& bc = problem.bcs.at(edge_tag);
+            for(size_t i = 0; i < edge.size(); ++i){
+                if(bc.type != BCType::Dirichlet){
+                    auto g_times_phi_i = [&](double x, double y, double t){
+                        auto phi = hat_values_on_edge(t);
+                        return bc.g(x,y) * phi[i];
+                    };
+                    r[edge[i]] += edge_quadrature(edge_quad_rule,coords,g_times_phi_i);
+                }
+                else continue;
+            }
+        }        
+        return r;
+    }
 
 } // namespace fem

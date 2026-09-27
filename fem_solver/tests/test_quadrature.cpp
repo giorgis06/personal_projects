@@ -29,11 +29,29 @@ TEST_CASE("triangle_quadrature: CENTROID is exact for linear functions"){
 
 TEST_CASE("edge_quadrature: constant integrates to the length"){
     array<array<double,2>,2> E = {{{0,0},{3,4}}};
-    CHECK(edge_quadrature(MIDPOINT, E, [](double, double){ return 1.0; }) == Approx(5));
+    CHECK(edge_quadrature(MIDPOINT, E, [](double, double, double){ return 1.0; }) == Approx(5));
 }
 
 TEST_CASE("edge_quadrature: MIDPOINT is exact for linear functions"){
     // x runs 0 -> 3 along a length-5 edge: ∫ x ds = 5 * 1.5
     array<array<double,2>,2> E = {{{0,0},{3,4}}};
-    CHECK(edge_quadrature(MIDPOINT, E, [](double x, double){ return x; }) == Approx(7.5));
+    CHECK(edge_quadrature(MIDPOINT, E, [](double x, double, double){ return x; }) == Approx(7.5));
+}
+
+TEST_CASE("edge_quadrature: GAUSS_2 weights sum to 1"){
+    double s = 0.0;
+    for(double w : GAUSS_2.Weights) s += w;
+    CHECK(s == Approx(1));
+}
+
+TEST_CASE("edge_quadrature: GAUSS_2 is exact for cubics, MIDPOINT is not for quadratics"){
+    // Along (0,0)->(3,4), x = 3t and ds = 5 dt:  ∫ x³ ds = 5 * 27/4
+    array<array<double,2>,2> E = {{{0,0},{3,4}}};
+    CHECK(edge_quadrature(GAUSS_2, E, [](double x, double, double){ return x*x*x; }) == Approx(33.75));
+
+    // ∫_0^1 t(1-t) dt = 1/6, but the midpoint sees 1/4
+    array<array<double,2>,2> U = {{{0,0},{1,0}}};
+    auto bubble = [](double, double, double t){ return t*(1-t); };
+    CHECK(edge_quadrature(GAUSS_2, U, bubble) == Approx(1.0/6));
+    CHECK(edge_quadrature(MIDPOINT, U, bubble) == Approx(1.0/4));
 }

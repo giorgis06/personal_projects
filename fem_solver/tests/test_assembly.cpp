@@ -204,3 +204,146 @@ TEST_CASE("assembly: patch test, K u = 0 at interior nodes for linear u"){
         }
     }
 }
+// ---- Robin boundary matrix -----------------------------------------------------
+// R_ij = ∫_E κ φ_i φ_j over Robin edges only. φ_i φ_j is quadratic along an edge,
+// so these use GAUSS_2 (exact up to cubics).
+
+static BoundaryCondition robin(std::function<double(double,double)> kappa){
+    return {BCType::Robin, [](double, double){ return 0.0; }, std::move(kappa)};
+}
+
+TEST_CASE("R: single edge, constant kappa gives kappa*L/6*[[2,1],[1,2]]"){
+    // Edge (0,0)-(3,4), length 5, kappa = 2
+    Mesh mesh({{0,0},{3,4},{0,4}}, {{0,1,2}}, {10}, {{0,1}}, {1});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, robin([](double, double){ return 2.0; })}}};
+    CSR R = assemble_R(p, GAUSS_2);
+
+    const double c = 2.0 * 5.0 / 6.0;
+    CHECK(entry(R,0,0) == Approx(2*c));
+    CHECK(entry(R,1,1) == Approx(2*c));
+    CHECK(entry(R,0,1) == Approx(c));
+    CHECK(entry(R,1,0) == Approx(c));
+    CHECK(entry(R,2,2) == 0.0);
+}
+
+TEST_CASE("R: linear kappa = x on the unit edge"){
+    // ∫_0^1 x(1-x)² = 1/12,  ∫ x²(1-x) = 1/12,  ∫ x³ = 1/4
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1}}, {1});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, robin([](double x, double){ return x; })}}};
+    CSR R = assemble_R(p, GAUSS_2);
+
+    CHECK(entry(R,0,0) == Approx(1.0/12));
+    CHECK(entry(R,0,1) == Approx(1.0/12));
+    CHECK(entry(R,1,0) == Approx(1.0/12));
+    CHECK(entry(R,1,1) == Approx(1.0/4));
+}
+
+TEST_CASE("R: Dirichlet and Neumann edges contribute nothing"){
+    // Only edge 0-1 is Robin; the others carry no kappa and must be skipped, not called
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1},{1,2},{2,0}}, {1,2,3});
+    auto zero = [](double, double){ return 0.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, robin([](double, double){ return 1.0; })},
+                      {2, {BCType::Dirichlet, zero, {}}},
+                      {3, {BCType::Neumann,   zero, {}}}}};
+    CSR R = assemble_R(p, GAUSS_2);
+
+    CHECK(entry(R,0,0) == Approx(1.0/3));
+    CHECK(entry(R,0,1) == Approx(1.0/6));
+    CHECK(entry(R,2,2) == 0.0);
+    CHECK(entry(R,1,2) == 0.0);
+    CHECK(entry(R,0,2) == 0.0);
+}
+
+TEST_CASE("R: all-Robin unit square, 1ᵀR1 = perimeter and yᵀRy = ∫ y² ds"){
+    // Σφ_i = 1, so 1ᵀR1 = ∫_∂Ω κ = 4 for κ = 1.
+    // With u_i = y_i, uᵀRu = ∫_∂Ω y² = 0 (bottom) + 1/3 (right) + 1 (top) + 1/3 (left) = 5/3.
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    auto one = [](double, double){ return 1.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, robin(one)}, {2, robin(one)}, {3, robin(one)}, {4, robin(one)}}};
+    CSR R = assemble_R(p, GAUSS_2);
+
+    const vector<double> ones(R.n, 1.0);
+    vector<double> y(R.n);
+    for(int i = 0; i < R.n; ++i) y[i] = positions[i][1];
+
+    CHECK(dot(spmv(R, ones), ones) == Approx(4.0));
+    CHECK(dot(spmv(R, y), y) == Approx(5.0/3));
+
+    for(int r = 0; r < R.n; ++r)
+        for(int k = R.row_ptr[r]; k < R.row_ptr[r+1]; ++k)
+            CHECK(R.values[k] == entry(R, R.col_idx[k], r));
+}
+
+// ---- boundary load vector ------------------------------------------------------
+// r_i = ∫_E g φ_i over Neumann and Robin edges (g = g_N, or κ g_D + g_N). Dirichlet
+// edges are handled by elimination, so they must not contribute here.
+
+TEST_CASE("r: single Neumann edge, g = 1 gives L/2 per node"){
+    // Edge uses nodes 1 and 2 (not 0 and 1), so a local/global index mix-up shows
+    Mesh mesh({{0,0},{3,0},{3,4}}, {{0,1,2}}, {10}, {{1,2}}, {1});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, [](double, double){ return 1.0; }, {}}}}};
+    vector<double> r = assemble_r(p, GAUSS_2);
+
+    REQUIRE(r.size() == 3);
+    CHECK(r[0] == 0.0);
+    CHECK(r[1] == Approx(2.0));
+    CHECK(r[2] == Approx(2.0));
+}
+
+TEST_CASE("r: linear g = x on a diagonal edge"){
+    // Edge node1 (1,0) -> node2 (0,1), L = √2, x = 1 - t:
+    // r_1 = L ∫(1-t)² = L/3,  r_2 = L ∫(1-t)t = L/6
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{1,2}}, {1});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, [](double x, double){ return x; }, {}}}}};
+    vector<double> r = assemble_r(p, GAUSS_2);
+
+    const double L = std::sqrt(2.0);
+    CHECK(r[0] == 0.0);
+    CHECK(r[1] == Approx(L/3));
+    CHECK(r[2] == Approx(L/6));
+}
+
+TEST_CASE("r: Robin edges count, Dirichlet edges do not"){
+    // Edges 0-1 Robin, 1-2 Dirichlet, 2-0 Neumann, all with g = 1.
+    // Node 0 gets 1/2 from each unit leg; node 1 only from 0-1; node 2 only from 2-0.
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1},{1,2},{2,0}}, {1,2,3});
+    auto one = [](double, double){ return 1.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Robin,     one, one}},
+                      {2, {BCType::Dirichlet, one, {}}},
+                      {3, {BCType::Neumann,   one, {}}}}};
+    vector<double> r = assemble_r(p, GAUSS_2);
+
+    CHECK(r[0] == Approx(1.0));
+    CHECK(r[1] == Approx(0.5));
+    CHECK(r[2] == Approx(0.5));
+}
+
+TEST_CASE("r: all-Neumann unit square, Σr = perimeter and r·y = ∫ x y ds"){
+    // Σφ_i = 1, so Σr = ∫_∂Ω 1 = 4.
+    // With u_i = y_i, r·u = ∫_∂Ω x y = 0 (bottom) + 1/2 (right) + 1/2 (top) + 0 (left) = 1.
+    // The mesh has more triangles than boundary edges, so looping over the wrong count shows.
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    REQUIRE(mesh.numElements() != mesh.numEdges());
+
+    BoundaryCondition one {BCType::Neumann, [](double, double){ return 1.0; }, {}};
+    BoundaryCondition xg  {BCType::Neumann, [](double x, double){ return x; }, {}};
+
+    PoissonProblem p1{Mesh(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr, {{1, one}, {2, one}, {3, one}, {4, one}}};
+    vector<double> r = assemble_r(p1, GAUSS_2);
+    REQUIRE(r.size() == mesh.numNodes());
+    CHECK(std::accumulate(r.begin(), r.end(), 0.0) == Approx(4.0));
+
+    PoissonProblem p2{Mesh(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr, {{1, xg}, {2, xg}, {3, xg}, {4, xg}}};
+    vector<double> y(mesh.numNodes());
+    for(size_t i = 0; i < y.size(); ++i) y[i] = positions[i][1];
+    CHECK(dot(assemble_r(p2, GAUSS_2), y) == Approx(1.0));
+}
