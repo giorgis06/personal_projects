@@ -13,7 +13,7 @@ enum class BCType {Dirichlet, // u = g_D
 struct BoundaryCondition{
     BCType type;
     std::function<double(double,double)> g; // g_D for Dirichlet, g_N for Neumann, kappa*g_D + g_N for Robin
-    double kappa = 0.0; // For Robin BCs 
+    std::function<double(double,double)> kappa; // For Robin BCs 
 };
 
 using BoundaryConditions = std::map<int,BoundaryCondition>;

@@ -30,6 +30,7 @@ namespace fem{
     };
 
     const EdgeQuadRule MIDPOINT = { {1.0/2},{1.0}};
+    const EdgeQuadRule GAUSS_2 = {{0.5 - 0.5/std::sqrt(3.0), 0.5 + 0.5/std::sqrt(3.0)}, {0.5, 0.5}};
 
     template<class F>
     double triangle_quadrature(const TriQuadRule& Q, const array<array<double,2>,3>& T, F&& f){
@@ -66,7 +67,7 @@ namespace fem{
             array<double,2> point = {(1-t)*E[0][0] + t*E[1][0],
                                      (1-t)*E[0][1] + t*E[1][1]};
 
-            result += Q.Weights[i] * f(point[0],point[1]);
+            result += Q.Weights[i] * f(point[0],point[1],t);
         }
         double length = std::hypot(E[1][0]-E[0][0], E[1][1]-E[0][1]);
         return result * length;

@@ -121,13 +121,17 @@ inline double dot_prod_2d(const array<double,2>& vec1,const array<double,2>& vec
 inline array<double,3> hat_values(const array<array<double,2>,3>& T,
                                   const array<array<double,2>,3>& grads,
                                   double x, double y){
-    // TODO: for i in 0..2:  1 + dot_prod_2d(grads[i], {x - T[i][0], y - T[i][1]})
     array<double,3> phi;
+    // phi_i = 1 + grad(phi_i)*(x-x_i,y-y_i) on the triangle
     for(int i = 0; i < 3; ++i){
         phi[i] = 1 + dot_prod_2d(grads[i], {x - T[i][0],y-T[i][1]});
     }
     return phi;
 }
 
+inline array<double,2> hat_values_on_edge(double t){
+    // phi_i = 0 if Node[i] not on either side of the edge else:
+    return {1-t,t};
+}
 
 }   // namespace fem

@@ -78,3 +78,15 @@ TEST_CASE("hat_values: nodal property, partition of unity, linear reproduction")
 TEST_CASE("dot_prod_2d"){
     CHECK(dot_prod_2d({1.0, 2.0}, {3.0, -4.0}) == Approx(-5));
 }
+
+TEST_CASE("hat_values_on_edge: nodal property and partition of unity"){
+    auto phi0 = hat_values_on_edge(0.0);
+    auto phi1 = hat_values_on_edge(1.0);
+    CHECK(phi0[0] == Approx(1)); CHECK(phi0[1] == Approx(0));
+    CHECK(phi1[0] == Approx(0)); CHECK(phi1[1] == Approx(1));
+
+    for(double t : {0.1, 0.5, 0.77}){
+        auto phi = hat_values_on_edge(t);
+        CHECK(phi[0] + phi[1] == Approx(1));
+    }
+}
