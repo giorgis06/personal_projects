@@ -105,4 +105,8 @@ inline CSR extract_principal_submatrix(const CSR& A,
     return to_csr(std::move(triplets),dim_block);
 }
 
+inline vector<double> SpMV(const CSR& A, const vector<double>& v){
+
+}
+
 }
