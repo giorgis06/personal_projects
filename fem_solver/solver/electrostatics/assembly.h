@@ -146,4 +146,59 @@ namespace fem{
         return {std::move(g2f),std::move(g2d)};
     }
 
+    inline int number_of_free_nodes(const vector<int>& g2f){
+        int result = 0;
+        for(size_t i = 0; i < g2f.size(); ++i) if(g2f[i] != -1) result++;
+        return result;
+    }
+
+    inline CSR assemble_K_ff(const CSR& K,
+                             const vector<int>& g2f,
+                             int num_free){
+        return extract_principal_submatrix(K,g2f,num_free);
+    }
+
+    inline vector<double> assemble_K_fd_times_g(const CSR& K,
+                                                const vector<int>& g2f,
+                                                const vector<int>& g2d,
+                                                const vector<double>& g,
+                                                int num_free){
+        // K_FD g = (K u_D)_F, where u_D is g on the Dirichlet nodes and 0 on the free ones:
+        // the free columns of K multiply zeros, so only the FD block contributes.
+        // g is in Dirichlet numbering, g[g2d[node]].
+        vector<double> u_D(K.n,0.0);
+        for(int i = 0; i < K.n; ++i){
+            if(g2d[i] != -1) u_D[i] = g[g2d[i]];
+        }
+        return extract_principal_subvector(spmv(K,u_D),g2f,num_free);
+    }
+
+    inline vector<double> assemble_b_plus_r_f(const vector<double>& b_plus_r,
+                                              const vector<int>& g2f,
+                                              int num_free){
+        return extract_principal_subvector(b_plus_r,g2f,num_free);
+    }
+
+    inline vector<double> assemble_g(const PoissonProblem& problem,
+                                     const vector<int>& g2d,
+                                     int num_dirichlet){
+        // g_D evaluated at every Dirichlet node, in Dirichlet numbering: g[g2d[node]].
+        // Set, not added: each node sits on two edges.
+        // Corner where two Dirichlet edges with different g_D meet: the last edge wins.
+        // Fine if g_D is continuous there, otherwise the problem itself is ill-posed at that point.
+        const Mesh& m = problem.mesh;
+        vector<double> g(num_dirichlet,0.0);
+
+        for(size_t iEdge = 0; iEdge < m.numEdges(); ++iEdge){
+            auto it = problem.bcs.find(m.edgeTags()[iEdge]);
+            if(it == problem.bcs.end() || it->second.type != BCType::Dirichlet) continue;
+
+            for(int node : m.edgeNodes()[iEdge]){
+                const array<double,2>& p = m.nodePositions()[node];
+                g[g2d[node]] = it->second.g(p[0],p[1]);
+            }
+        }
+        return g;
+    }
+
 } // namespace fem

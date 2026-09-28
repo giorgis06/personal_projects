@@ -86,7 +86,7 @@ TEST_CASE("submatrix: drop index 1, keep 0, 2, 3"){
     //  [ 1  0  3 ]
     //  [ 0  6  7 ]
     //  [ 3  7  8 ]
-    CSR S = extract_principal_submatrix(four_by_four(), {0,-1,1,2});
+    CSR S = extract_principal_submatrix(four_by_four(), {0,-1,1,2}, 3);
 
     CHECK(S.n == 3);
     CHECK(S.values  == vector<double>{1, 3, 6, 7, 3, 7, 8});
@@ -99,7 +99,7 @@ TEST_CASE("submatrix: the map also renumbers, not only filters"){
     //  [ 6  7  0 ]
     //  [ 7  8  3 ]
     //  [ 0  3  1 ]
-    CSR S = extract_principal_submatrix(four_by_four(), {2,-1,0,1});
+    CSR S = extract_principal_submatrix(four_by_four(), {2,-1,0,1}, 3);
 
     CHECK(S.n == 3);
     CHECK(S.values  == vector<double>{6, 7, 7, 8, 3, 3, 1});
@@ -110,20 +110,20 @@ TEST_CASE("submatrix: the map also renumbers, not only filters"){
 TEST_CASE("submatrix: keep everything gives M back, keep nothing gives 0x0"){
     const CSR M = four_by_four();
 
-    CSR all = extract_principal_submatrix(M, {0,1,2,3});
+    CSR all = extract_principal_submatrix(M, {0,1,2,3}, 4);
     CHECK(all.n == 4);
     CHECK(all.values  == M.values);
     CHECK(all.col_idx == M.col_idx);
     CHECK(all.row_ptr == M.row_ptr);
 
-    CSR none = extract_principal_submatrix(M, {-1,-1,-1,-1});
+    CSR none = extract_principal_submatrix(M, {-1,-1,-1,-1}, 0);
     CHECK(none.n == 0);
     CHECK(none.values.empty());
     CHECK(none.row_ptr == vector<int>{0});
 }
 
 TEST_CASE("submatrix: map of the wrong size throws"){
-    CHECK_THROWS_AS(extract_principal_submatrix(four_by_four(), {0,1,2}), std::runtime_error);
+    CHECK_THROWS_AS(extract_principal_submatrix(four_by_four(), {0,1,2}, 3), std::runtime_error);
 }
 
 TEST_CASE("spmv: matches the dense product"){
@@ -150,4 +150,24 @@ TEST_CASE("spmv: empty rows give 0, unit vectors pick out columns"){
 
 TEST_CASE("spmv: wrong vector size throws"){
     CHECK_THROWS_AS(spmv(four_by_four(), {1, 2, 3}), std::runtime_error);
+}
+
+TEST_CASE("subvector: keeps the mapped entries at their new positions"){
+    // Keep 0, 2, 3 in order
+    CHECK(extract_principal_subvector({10, 11, 12, 13}, {0,-1,1,2}, 3) == vector<double>{10, 12, 13});
+    // Renumbered: new 0 = old 2, new 1 = old 3, new 2 = old 0
+    CHECK(extract_principal_subvector({10, 11, 12, 13}, {2,-1,0,1}, 3) == vector<double>{12, 13, 10});
+    // Keep nothing
+    CHECK(extract_principal_subvector({10, 11, 12, 13}, {-1,-1,-1,-1}, 0).empty());
+}
+
+TEST_CASE("subvector: map of the wrong size throws"){
+    CHECK_THROWS_AS(extract_principal_subvector({1, 2, 3}, {0,1}, 2), std::runtime_error);
+}
+
+TEST_CASE("add_vec: sum, scaled difference, wrong size throws"){
+    CHECK(add_vec({1, 2, 3}, {10, 20, 30}) == vector<double>{11, 22, 33});
+    CHECK(add_vec({1, 2, 3}, {10, 20, 30}, -1.0) == vector<double>{-9, -18, -27});
+    CHECK(add_vec({}, {}).empty());
+    CHECK_THROWS_AS(add_vec({1, 2}, {1, 2, 3}), std::runtime_error);
 }
