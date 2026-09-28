@@ -55,12 +55,14 @@ namespace fem{
         // System matrix: the free-free block of K. SPD, so CG applies.
         CSR K_ff = assemble_K_ff(K,g2f,num_free);
 
-        // K_FF xi_F = (b + r)_F - K_FD g
+        // K_FF ξ_F = (b + r)_F - K_FD g
         const CSR& rhs = K_ff;
         vector<double> lhs = add_vec(b_plus_r_f,k_fd_g,-1);
 
         // Solve for the free values only
         vector<double> free_solution = conjugate_gradient_solve(rhs,lhs,initial_guess,tolerance);
+
+        solution = assemble_full_solution(free_solution,g,g2f,g2d);
     }
 
 } // namespace fem

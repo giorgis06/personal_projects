@@ -183,7 +183,6 @@ namespace fem{
                                      const vector<int>& g2d,
                                      int num_dirichlet){
         // g_D evaluated at every Dirichlet node, in Dirichlet numbering: g[g2d[node]].
-        // Set, not added: each node sits on two edges.
         // Corner where two Dirichlet edges with different g_D meet: the last edge wins.
         // Fine if g_D is continuous there, otherwise the problem itself is ill-posed at that point.
         const Mesh& m = problem.mesh;
@@ -199,6 +198,19 @@ namespace fem{
             }
         }
         return g;
+    }
+
+    inline vector<double> assemble_full_solution(const vector<double>& free_solution,
+                                                 const vector<double>& dir_solution,
+                                                 const vector<int>& g2f,
+                                                 const vector<int>& g2d)
+    {
+        const int n = static_cast<int>(g2f.size());
+        if(free_solution.size() + dir_solution.size() != g2f.size()) throw std::runtime_error("In assemble_full_solution: free and Dirichlet parts don't add up to the number of nodes, (dimFree,dimDir,numNodes) = (" + std::to_string(free_solution.size()) + ", " + std::to_string(dir_solution.size()) + ", " + std::to_string(n) + ")");
+        vector<double> solution(n,0.0);
+        for(int i = 0; i < n; ++i)
+            solution[i] = (g2f[i] != -1) ? free_solution[g2f[i]] : dir_solution[g2d[i]];
+        return solution;
     }
 
 } // namespace fem
