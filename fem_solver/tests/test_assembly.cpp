@@ -1,6 +1,7 @@
 #include "doctest.h"
 #include "solver/electrostatics/assembly.h"
 
+#include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <set>
@@ -15,16 +16,6 @@ static double entry(const CSR& K, int r, int c){
         if(K.col_idx[k] == c) return K.values[k];
     }
     return 0.0;
-}
-
-static vector<double> spmv(const CSR& K, const vector<double>& x){
-    vector<double> y(K.n, 0.0);
-    for(int r = 0; r < K.n; ++r){
-        for(int k = K.row_ptr[r]; k < K.row_ptr[r+1]; ++k){
-            y[r] += K.values[k] * x[K.col_idx[k]];
-        }
-    }
-    return y;
 }
 
 // Nodes on the outer boundary: those on an edge owned by exactly one triangle.
@@ -346,4 +337,116 @@ TEST_CASE("r: all-Neumann unit square, Σr = perimeter and r·y = ∫ x y ds"){
     vector<double> y(mesh.numNodes());
     for(size_t i = 0; i < y.size(); ++i) y[i] = positions[i][1];
     CHECK(dot(assemble_r(p2, GAUSS_2), y) == Approx(1.0));
+}
+
+// ---- Dirichlet / free node split ---------------------------------------------
+
+TEST_CASE("node split: every node gets exactly one role, Dirichlet wins at corners"){
+    // Left side (tag 4) Dirichlet, the rest Neumann. The interior is untagged.
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    auto zero = [](double, double){ return 0.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, zero, {}}}, {2, {BCType::Neumann, zero, {}}},
+                      {3, {BCType::Neumann, zero, {}}}, {4, {BCType::Dirichlet, zero, {}}}}};
+
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    const size_t n = p.mesh.numNodes();
+    REQUIRE(g2f.size() == n);
+    REQUIRE(g2d.size() == n);
+
+    std::set<int> free_ids, dir_ids;
+    for(size_t i = 0; i < n; ++i){
+        CAPTURE(i);
+        CHECK(((g2f[i] >= 0) != (g2d[i] >= 0)));                     // exactly one role
+        if(g2f[i] >= 0) free_ids.insert(g2f[i]);
+        if(g2d[i] >= 0) dir_ids.insert(g2d[i]);
+
+        const bool on_left = std::abs(positions[i][0]) < 1e-12;
+        CHECK((g2d[i] >= 0) == on_left);                              // Dirichlet iff on x = 0
+    }
+
+    // Indices are 0..count-1 with no gaps or repeats
+    const size_t nF = std::count_if(g2f.begin(), g2f.end(), [](int v){ return v >= 0; });
+    const size_t nD = std::count_if(g2d.begin(), g2d.end(), [](int v){ return v >= 0; });
+    CHECK(nF + nD == n);
+    CHECK(free_ids.size() == nF);
+    CHECK(dir_ids.size() == nD);
+    CHECK(*free_ids.rbegin() == static_cast<int>(nF) - 1);
+    CHECK(*dir_ids.rbegin() == static_cast<int>(nD) - 1);
+}
+
+TEST_CASE("node split: tags without a BC are skipped, no BCs means all free"){
+    // Edge tag 7 has no entry in bcs, e.g. a material interface
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1}}, {7});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr, {}};
+
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    CHECK(g2f == vector<int>{0,1,2});
+    CHECK(g2d == vector<int>{-1,-1,-1});
+}
+
+// ---- Dirichlet elimination pieces ----------------------------------------------
+//     [ 1  2  0  3 ]
+// M = [ 2  4  5  0 ]    F = {0, 2},  D = {1, 3}
+//     [ 0  5  6  7 ]
+//     [ 3  0  7  8 ]
+
+static CSR four_by_four_M(){
+    return to_csr({{0,0,1},{0,1,2},{0,3,3},
+                   {1,0,2},{1,1,4},{1,2,5},
+                   {2,1,5},{2,2,6},{2,3,7},
+                   {3,0,3},{3,2,7},{3,3,8}}, 4);
+}
+
+TEST_CASE("elimination: K_FF, K_FD g and (b+r)_F on a hand example"){
+    const CSR M = four_by_four_M();
+    const vector<int> g2f = {0,-1,1,-1};
+    const vector<int> g2d = {-1,0,-1,1};
+
+    //  K_FF = [ 1  0 ]
+    //         [ 0  6 ]
+    CSR Kff = assemble_K_ff(M, g2f, 2);
+    CHECK(Kff.n == 2);
+    CHECK(Kff.values  == vector<double>{1, 6});
+    CHECK(Kff.col_idx == vector<int>{0, 1});
+
+    // g = 2 at node 1, 3 at node 3:  row 0: 2*2 + 3*3 = 13,  row 2: 5*2 + 7*3 = 31
+    CHECK(assemble_K_fd_times_g(M, g2f, g2d, {2, 3}, 2) == vector<double>{13, 31});
+
+    CHECK(assemble_b_plus_r_f({10, 11, 12, 13}, g2f, 2) == vector<double>{10, 12});
+}
+
+TEST_CASE("assemble_g: g_D evaluated at every Dirichlet node"){
+    // Left (tag 4) and top (tag 3) Dirichlet with the same linear g, so the shared corner (0,1) is unambiguous
+    Mesh mesh = load_mesh("tests/data/square.geo");
+    const auto positions = mesh.nodePositions();
+    auto g_D  = [](double x, double y){ return 2.0 + 3.0*x - y; };
+    auto zero = [](double, double){ return 0.0; };
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, zero, {}}}, {2, {BCType::Neumann, zero, {}}},
+                      {3, {BCType::Dirichlet, g_D, {}}}, {4, {BCType::Dirichlet, g_D, {}}}}};
+
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    const int nD = static_cast<int>(std::count_if(g2d.begin(), g2d.end(), [](int v){ return v >= 0; }));
+    REQUIRE(nD > 0);
+
+    // g_D >= 1 on the left and top sides, so a leftover 0 means an entry was never set
+    vector<double> g = assemble_g(p, g2d, nD);
+    REQUIRE(g.size() == static_cast<size_t>(nD));
+    for(double v : g) CHECK(v >= 1.0);
+
+    for(size_t n = 0; n < g2d.size(); ++n){
+        if(g2d[n] < 0) continue;
+        CAPTURE(n);
+        CHECK(g[g2d[n]] == Approx(g_D(positions[n][0], positions[n][1])));
+    }
+}
+
+TEST_CASE("assemble_g: no Dirichlet edges gives an empty vector"){
+    Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10}, {{0,1}}, {1});
+    PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
+                     {{1, {BCType::Neumann, [](double, double){ return 1.0; }, {}}}}};
+    auto [g2f, g2d] = general2free_dirichlet(p);
+    CHECK(assemble_g(p, g2d, 0).empty());
 }
