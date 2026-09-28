@@ -18,16 +18,6 @@ static double entry(const CSR& K, int r, int c){
     return 0.0;
 }
 
-static vector<double> spmv(const CSR& K, const vector<double>& x){
-    vector<double> y(K.n, 0.0);
-    for(int r = 0; r < K.n; ++r){
-        for(int k = K.row_ptr[r]; k < K.row_ptr[r+1]; ++k){
-            y[r] += K.values[k] * x[K.col_idx[k]];
-        }
-    }
-    return y;
-}
-
 // Nodes on the outer boundary: those on an edge owned by exactly one triangle.
 // Computed from the elements, so tagged interface edges don't count.
 static std::set<int> boundary_nodes(const Mesh& mesh){

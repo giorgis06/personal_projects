@@ -158,10 +158,45 @@ scipy (`spsolve`) is the other oracle. If it disagrees with my CG, the solver is
 - No exact float compares in tests.
 - Unsaved files don't get tested.
 
+## Roadmap
+
+1. **CPU solver.** Dirichlet elimination, CG, manufactured solution test. Then Jacobi PCG, maybe IC(0) to compare.
+2. **Benchmarks.** Meshes of growing size. Log assembly time, iterations, time per iteration. Dump K_FF and b as Matrix Market so GPU experiments and scipy can use them standalone.
+3. **GPU v1.** Same CG loop on cuBLAS + cuSPARSE, checked against the CPU.
+4. **GPU v2.** My own axpy, dot and SpMV (1 thread / 4 to 8 threads / warp per row), timed against v1.
+5. **GPU v3.** Fused kernels, Jacobi on GPU, CUDA Graphs, device pointer mode.
+6. **Later.** AMG, matrix-free, time domain waves (`M ü + K u = 0`), complex Helmholtz.
+
+SpMV is bandwidth bound, so the number to watch is achieved GB/s against the 5070's ~670 GB/s, not FLOPS.
+
+Keep CG written only against `spmv`, `dot`, `axpy`, `nrm2` and a preconditioner `apply(r) -> z`. Then porting means swapping implementations, not logic.
+
+## Things to explore
+
+- **Preconditioners:** Jacobi (trivial, parallel), IC(0) (strong on CPU, sequential on GPU), polynomial/Chebyshev and sparse approximate inverse (only SpMVs, GPU friendly), multigrid/AMG (iterations stop depending on h).
+- **Sparse formats:** CSR vs ELL / SELL-C-σ vs BSR (for vector problems). cuSPARSE has all of them, so they can be compared without writing kernels.
+- **Node reordering** (reverse Cuthill-McKee) for cache locality of x in SpMV.
+- **Matrix-free** K·x straight from element data. Break-even at P1, wins from P2 up.
+- **Waves:** time domain (real, explicit, lumped M, CFL) vs frequency domain (complex, indefinite, GMRES/BiCGSTAB, PML).
+- **Complex:** `std::complex<double>`, cuBLAS `Z` routines, cuSPARSE `CUDA_C_64F`, COCG for complex symmetric systems.
+
 ## Reading
 
+**FEM and solvers**
 - **Larson & Bengzon**, *The Finite Element Method: Theory, Implementation, and Applications*. Ch. 1 to 4, the main reference.
 - **Shewchuk**, *An Introduction to the Conjugate Gradient Method Without the Agonizing Pain*. Read §1 to 8 before writing CG. <https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf>
-- **Saad**, *Iterative Methods for Sparse Linear Systems*, for preconditioning later. <https://www-users.cse.umn.edu/~saad/IterMethBook_2ndEd.pdf>
-- **Jin**, *The Finite Element Method in Electromagnetics*, for the EM side.
-- **Cecka, Lew & Darve**, *Assembly of finite element methods on graphics processors* (2011), for the GPU port.
+- **Saad**, *Iterative Methods for Sparse Linear Systems*, for preconditioning. <https://www-users.cse.umn.edu/~saad/IterMethBook_2ndEd.pdf>
+- **Briggs, Henson & McCormick**, *A Multigrid Tutorial*. Short, the way into multigrid.
+- **Jin**, *The Finite Element Method in Electromagnetics*, for the EM and wave side.
+
+**GPU**
+- **Mark Harris**, *Optimizing Parallel Reduction in CUDA* (slides). Step by step dot product.
+- **Bell & Garland**, *Implementing Sparse Matrix-Vector Multiplication on Throughput-Oriented Processors* (2009). CSR scalar/vector, ELL, HYB.
+- **Cecka, Lew & Darve**, *Assembly of finite element methods on graphics processors* (2011), if assembly ever moves to the GPU.
+- cuBLAS docs (Level-1) and cuSPARSE docs (Generic API, `cusparseSpMV`).
+
+**Code to read (after writing my own)**
+- NVIDIA `cuda-samples`: the `conjugateGradient` sample.
+- NVIDIA `CUDALibrarySamples`: small cuSPARSE/cuBLAS examples.
+- **Ginkgo**: open source, many SpMV formats, CG and preconditioners on GPU.
+- **AmgX**: NVIDIA's AMG, as a reference for iteration counts.

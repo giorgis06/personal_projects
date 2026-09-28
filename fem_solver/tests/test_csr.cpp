@@ -125,3 +125,29 @@ TEST_CASE("submatrix: keep everything gives M back, keep nothing gives 0x0"){
 TEST_CASE("submatrix: map of the wrong size throws"){
     CHECK_THROWS_AS(extract_principal_submatrix(four_by_four(), {0,1,2}), std::runtime_error);
 }
+
+TEST_CASE("spmv: matches the dense product"){
+    // M x with x = (1, -1, 2, 0.5):
+    //   row 0: 1 - 2 + 0 + 1.5 = 0.5
+    //   row 1: 2 - 4 + 10 + 0  = 8
+    //   row 2: 0 - 5 + 12 + 3.5 = 10.5
+    //   row 3: 3 + 0 + 14 + 4  = 21
+    // The entries of x differ, so reading x at the wrong index shows.
+    vector<double> y = spmv(four_by_four(), {1, -1, 2, 0.5});
+    CHECK(y == vector<double>{0.5, 8, 10.5, 21});
+}
+
+TEST_CASE("spmv: empty rows give 0, unit vectors pick out columns"){
+    // Only rows 0 and 2 have entries in a 4x4 (same matrix as the to_csr test)
+    CSR K = to_csr({{2,2,5},{0,0,1}}, 4);
+    CHECK(spmv(K, {1,1,1,1}) == vector<double>{1, 0, 5, 0});
+
+    // M e_j is column j of M
+    const CSR M = four_by_four();
+    CHECK(spmv(M, {0,0,1,0}) == vector<double>{0, 5, 6, 7});
+    CHECK(spmv(M, {0,0,0,1}) == vector<double>{3, 0, 7, 8});
+}
+
+TEST_CASE("spmv: wrong vector size throws"){
+    CHECK_THROWS_AS(spmv(four_by_four(), {1, 2, 3}), std::runtime_error);
+}

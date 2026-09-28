@@ -97,16 +97,27 @@ inline CSR extract_principal_submatrix(const CSR& A,
     int dim_block = 0;
     for(size_t i = 0; i < map.size(); ++i) if(map[i] != -1) dim_block++;
 
-    for(size_t r = 0; r < A.n; ++r){
-        for(size_t j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
+    for(int r = 0; r < A.n; ++r){
+        for(int j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
             if(map[r] != -1 && map[A.col_idx[j]] != -1) triplets.push_back({map[r],map[A.col_idx[j]],A.values[j]});
         }
     }
     return to_csr(std::move(triplets),dim_block);
 }
 
-inline vector<double> SpMV(const CSR& A, const vector<double>& v){
+inline vector<double> spmv(const CSR& A, const vector<double>& v){
+    if(v.size() != static_cast<size_t>(A.n)) throw std::runtime_error("In SpMV: matrix and vector are not of the same dimension, (dimA,dimV) = (" + std::to_string(A.n) + ", " + std::to_string(v.size()) + ")");
 
+    vector<double> result(v.size(),0.0);    
+
+    #pragma omp parallel for
+    for(int r = 0; r < A.n; r++){
+        for(int j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
+            result[r] += A.values[j]*v[j];
+        }
+    }
+
+    return result;
 }
 
 }
