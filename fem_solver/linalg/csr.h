@@ -103,19 +103,35 @@ inline CSR extract_principal_submatrix(const CSR& A,
     return to_csr(std::move(triplets),dim_submatrix);
 }
 
-inline vector<double> spmv(const CSR& A, const vector<double>& v){
-    if(v.size() != static_cast<size_t>(A.n)) throw std::runtime_error("In SpMV: matrix and vector are not of the same dimension, (dimA,dimV) = (" + std::to_string(A.n) + ", " + std::to_string(v.size()) + ")");
+// ---- Vector kernels ----------------------------------------------------------
+// All in place: they write into a vector the caller already allocated, so a solver loop
+// allocates nothing. Same shape as cuSPARSE / cuBLAS (SpMV, axpy, dot), for the GPU port.
 
-    vector<double> result(A.n,0.0);
+inline void spmv(const CSR& A, const vector<double>& x, vector<double>& y){
+    // y = A x
+    if(x.size() != static_cast<size_t>(A.n) || y.size() != static_cast<size_t>(A.n)) throw std::runtime_error("In spmv: matrix and vectors are not of the same dimension, (dimA,dimX,dimY) = (" + std::to_string(A.n) + ", " + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
 
     #pragma omp parallel for
     for(int r = 0; r < A.n; r++){
+        double sum = 0.0;
         for(int j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
-            result[r] += A.values[j]*v[A.col_idx[j]];
+            sum += A.values[j]*x[A.col_idx[j]];
         }
+        y[r] = sum;
     }
+}
 
-    return result;
+inline void axpy(double a, const vector<double>& x, vector<double>& y){
+    // y += a x
+    if(x.size() != y.size()) throw std::runtime_error("In axpy: vectors are not of the same dimension, (dimX,dimY) = (" + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
+    for(size_t i = 0; i < x.size(); ++i) y[i] += a*x[i];
+}
+
+inline double dot(const vector<double>& x, const vector<double>& y){
+    if(x.size() != y.size()) throw std::runtime_error("In dot: vectors are not of the same dimension, (dimX,dimY) = (" + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
+    double sum = 0.0;
+    for(size_t i = 0; i < x.size(); ++i) sum += x[i]*y[i];
+    return sum;
 }
 
 inline vector<double> extract_principal_subvector(const vector<double>& v, const vector<int>& map, int dim_subvec){
@@ -127,14 +143,6 @@ inline vector<double> extract_principal_subvector(const vector<double>& v, const
         if(map[i] == - 1) continue; 
         else result[map[i]] = v[i]; 
     }
-    return result;
-}
-
-inline vector<double> add_vec(const vector<double>& a, const vector<double>& b, double alpha = 1.0){
-    // a + alpha*b. alpha = -1 subtracts, e.g. (b + r) - K u_D
-    if(a.size() != b.size()) throw std::runtime_error("In add_vec: vectors are not of the same dimension, (dimA,dimB) = (" + std::to_string(a.size()) + ", " + std::to_string(b.size()) + ")");
-    vector<double> result(a.size());
-    for(size_t i = 0; i < a.size(); ++i) result[i] = a[i] + alpha*b[i];
     return result;
 }
 

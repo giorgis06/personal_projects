@@ -102,14 +102,14 @@ static void check_structure(const CSR& K, size_t num_nodes){
 }
 
 TEST_CASE("assembly: unit square, structure"){
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const size_t n = mesh.numNodes();
     PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr, {}};
     check_structure(assemble_stiffness(p, CENTROID), n);
 }
 
 TEST_CASE("assembly: two materials, structure"){
-    Mesh mesh = load_mesh("tests/data/two_materials.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "two_materials.geo");
     const size_t n = mesh.numNodes();
     PoissonProblem p{std::move(mesh), {{10, {{4,4,0}, {}, {}}}, {11, {{1,1,0}, {}, {}}}}, nullptr, {}};
     check_structure(assemble_stiffness(p, CENTROID), n);
@@ -120,11 +120,6 @@ TEST_CASE("assembly: two materials, structure"){
 // Degree-2 rule (points at (2/3,1/6,1/6) and permutations, equal weights):
 // exact for quadratics, which f·φ_i is when f is linear.
 
-static double dot(const vector<double>& a, const vector<double>& b){
-    double s = 0.0;
-    for(size_t i = 0; i < a.size(); ++i) s += a[i] * b[i];
-    return s;
-}
 
 TEST_CASE("load: single triangle, f = 1 gives area/3 per node"){
     Mesh mesh({{0,0},{1,0},{0,1}}, {{0,1,2}}, {10});
@@ -139,12 +134,12 @@ TEST_CASE("load: f = 1 sums to the total area"){
     // The φ_i sum to 1 everywhere, so Σ b_i = ∫ f
     auto ones = [](double, double){ return 1.0; };
 
-    PoissonProblem square{load_mesh("tests/data/square.geo"), {{10, {{1,1,0}, {}, {}}}}, ones, {}};
+    PoissonProblem square{load_mesh(TEST_DATA_DIR "square.geo"), {{10, {{1,1,0}, {}, {}}}}, ones, {}};
     vector<double> b = assemble_load(square, CENTROID);
     CHECK(b.size() == square.mesh.numNodes());
     CHECK(std::accumulate(b.begin(), b.end(), 0.0) == Approx(1.0));
 
-    PoissonProblem two{load_mesh("tests/data/two_materials.geo"),
+    PoissonProblem two{load_mesh(TEST_DATA_DIR "two_materials.geo"),
                        {{10, {{4,4,0}, {}, {}}}, {11, {{1,1,0}, {}, {}}}}, ones, {}};
     b = assemble_load(two, CENTROID);
     CHECK(std::accumulate(b.begin(), b.end(), 0.0) == Approx(2.0));
@@ -155,7 +150,7 @@ TEST_CASE("load: f = x tested against u = y gives the integral of x*y"){
     // With u_i = y_i the sum Σ u_i φ_i reproduces y exactly (P1 is exact for linears),
     // so b·u = ∫_[0,1]² x y = 1/4. This weights every entry of b by its node's y,
     // so a single misplaced or mis-scaled entry shows up, unlike a plain sum.
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const auto positions = mesh.nodePositions();
     PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, [](double x, double){ return x; }, {}};
 
@@ -174,7 +169,7 @@ TEST_CASE("assembly: patch test, K u = 0 at interior nodes for linear u"){
     // P1 elements reproduce linear functions exactly, and a linear u satisfies
     // -div(eps grad u) = 0 for any constant eps. So every interior row of K u
     // must vanish; only boundary rows carry flux.
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const std::set<int> boundary = boundary_nodes(mesh);
     const auto positions = mesh.nodePositions();
 
@@ -187,7 +182,8 @@ TEST_CASE("assembly: patch test, K u = 0 at interior nodes for linear u"){
         vector<double> u(K.n);
         for(int i = 0; i < K.n; ++i) u[i] = 2.0 + 3.0*positions[i][0] - 1.5*positions[i][1];
 
-        vector<double> Ku = spmv(K, u);
+        vector<double> Ku(K.n);
+        spmv(K, u, Ku);
         REQUIRE(boundary.size() < static_cast<size_t>(K.n));   // there are interior nodes
         for(int i = 0; i < K.n; ++i){
             if(boundary.count(i)) continue;
@@ -251,7 +247,7 @@ TEST_CASE("R: Dirichlet and Neumann edges contribute nothing"){
 TEST_CASE("R: all-Robin unit square, 1ᵀR1 = perimeter and yᵀRy = ∫ y² ds"){
     // Σφ_i = 1, so 1ᵀR1 = ∫_∂Ω κ = 4 for κ = 1.
     // With u_i = y_i, uᵀRu = ∫_∂Ω y² = 0 (bottom) + 1/3 (right) + 1 (top) + 1/3 (left) = 5/3.
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const auto positions = mesh.nodePositions();
     auto one = [](double, double){ return 1.0; };
     PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
@@ -262,8 +258,11 @@ TEST_CASE("R: all-Robin unit square, 1ᵀR1 = perimeter and yᵀRy = ∫ y² ds"
     vector<double> y(R.n);
     for(int i = 0; i < R.n; ++i) y[i] = positions[i][1];
 
-    CHECK(dot(spmv(R, ones), ones) == Approx(4.0));
-    CHECK(dot(spmv(R, y), y) == Approx(5.0/3));
+    vector<double> Rx(R.n);
+    spmv(R, ones, Rx);
+    CHECK(dot(Rx, ones) == Approx(4.0));
+    spmv(R, y, Rx);
+    CHECK(dot(Rx, y) == Approx(5.0/3));
 
     for(int r = 0; r < R.n; ++r)
         for(int k = R.row_ptr[r]; k < R.row_ptr[r+1]; ++k)
@@ -321,7 +320,7 @@ TEST_CASE("r: all-Neumann unit square, Σr = perimeter and r·y = ∫ x y ds"){
     // Σφ_i = 1, so Σr = ∫_∂Ω 1 = 4.
     // With u_i = y_i, r·u = ∫_∂Ω x y = 0 (bottom) + 1/2 (right) + 1/2 (top) + 0 (left) = 1.
     // The mesh has more triangles than boundary edges, so looping over the wrong count shows.
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const auto positions = mesh.nodePositions();
     REQUIRE(mesh.numElements() != mesh.numEdges());
 
@@ -343,7 +342,7 @@ TEST_CASE("r: all-Neumann unit square, Σr = perimeter and r·y = ∫ x y ds"){
 
 TEST_CASE("node split: every node gets exactly one role, Dirichlet wins at corners"){
     // Left side (tag 4) Dirichlet, the rest Neumann. The interior is untagged.
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const auto positions = mesh.nodePositions();
     auto zero = [](double, double){ return 0.0; };
     PoissonProblem p{std::move(mesh), {{10, {{1,1,0}, {}, {}}}}, nullptr,
@@ -419,7 +418,7 @@ TEST_CASE("elimination: K_FF, K_FD g and (b+r)_F on a hand example"){
 
 TEST_CASE("assemble_g: g_D evaluated at every Dirichlet node"){
     // Left (tag 4) and top (tag 3) Dirichlet with the same linear g, so the shared corner (0,1) is unambiguous
-    Mesh mesh = load_mesh("tests/data/square.geo");
+    Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     const auto positions = mesh.nodePositions();
     auto g_D  = [](double x, double y){ return 2.0 + 3.0*x - y; };
     auto zero = [](double, double){ return 0.0; };

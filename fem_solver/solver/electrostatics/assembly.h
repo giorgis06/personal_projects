@@ -170,7 +170,9 @@ namespace fem{
         for(int i = 0; i < K.n; ++i){
             if(g2d[i] != -1) u_D[i] = g[g2d[i]];
         }
-        return extract_principal_subvector(spmv(K,u_D),g2f,num_free);
+        vector<double> K_u_D(K.n);
+        spmv(K,u_D,K_u_D);
+        return extract_principal_subvector(K_u_D,g2f,num_free);
     }
 
     inline vector<double> assemble_b_plus_r_f(const vector<double>& b_plus_r,

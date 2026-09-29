@@ -35,7 +35,8 @@ namespace fem{
         CSR K = add_csr(A,R);
         vector<double> b = assemble_load(problem,tri_quad_rule);
         vector<double> r = assemble_r(problem,edge_quad_rule);
-        vector<double> b_plus_r = add_vec(b,r,1);
+        vector<double> b_plus_r = b;
+        axpy(1.0,r,b_plus_r);
 
         // Node split. g2f / g2d map a global node id to its free / Dirichlet id (-1 if it isn't one).
         // Every node is exactly one of the two, Dirichlet wins at corners.
@@ -57,7 +58,8 @@ namespace fem{
 
         // K_FF ξ_F = (b + r)_F - K_FD g
         const CSR& rhs = K_ff;
-        vector<double> lhs = add_vec(b_plus_r_f,k_fd_g,-1);
+        vector<double> lhs = b_plus_r_f;
+        axpy(-1.0,k_fd_g,lhs);
 
         // Solve for the free values only
         vector<double> free_solution = conjugate_gradient_solve(rhs,lhs,initial_guess,tolerance);
