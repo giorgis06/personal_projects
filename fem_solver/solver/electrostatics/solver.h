@@ -1,3 +1,5 @@
+#pragma once
+
 #include "assembly.h"
 #include "conjugate_gradient.h"
 
@@ -25,6 +27,7 @@ namespace fem{
                                const vector<double>& initial_guess,
                                const TriQuadRule& tri_quad_rule,
                                const EdgeQuadRule& edge_quad_rule,
+                               int max_iterations,
                                double tolerance = 1e-10
                                )
     {
@@ -62,7 +65,7 @@ namespace fem{
         axpy(-1.0,k_fd_g,lhs);
 
         // Solve for the free values only
-        vector<double> free_solution = conjugate_gradient_solve(rhs,lhs,initial_guess,tolerance);
+        vector<double> free_solution = conjugate_gradient_solve(rhs,lhs,initial_guess,tolerance,max_iterations);
 
         solution = assemble_full_solution(free_solution,g,g2f,g2d);
     }

@@ -3,7 +3,7 @@
 #include "problem/problem.h"
 #include "quadrature.h"
 #include <filesystem>
-#include "linalg/csr.h"
+#include "linalg/vector_ops.h"
 
 namespace fem{
 

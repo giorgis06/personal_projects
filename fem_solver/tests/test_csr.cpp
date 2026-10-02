@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include "linalg/csr.h"
+#include "linalg/vector_ops.h"
 
 using namespace fem;
 

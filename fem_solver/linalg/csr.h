@@ -3,7 +3,8 @@
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
-#include <string> 
+#include <string>
+#include <cmath>
 
 namespace fem{
 
@@ -103,47 +104,26 @@ inline CSR extract_principal_submatrix(const CSR& A,
     return to_csr(std::move(triplets),dim_submatrix);
 }
 
-// ---- Vector kernels ----------------------------------------------------------
-// All in place: they write into a vector the caller already allocated, so a solver loop
-// allocates nothing. Same shape as cuSPARSE / cuBLAS (SpMV, axpy, dot), for the GPU port.
+// Matrix Preconditioners
 
-inline void spmv(const CSR& A, const vector<double>& x, vector<double>& y){
-    // y = A x
-    if(x.size() != static_cast<size_t>(A.n) || y.size() != static_cast<size_t>(A.n)) throw std::runtime_error("In spmv: matrix and vectors are not of the same dimension, (dimA,dimX,dimY) = (" + std::to_string(A.n) + ", " + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
-
-    #pragma omp parallel for
-    for(int r = 0; r < A.n; r++){
-        double sum = 0.0;
+inline vector<double> inverse_diagonal(const CSR& A){
+    vector<double> diag(A.n,0.0);
+    for(int r = 0; r < A.n; ++r){
         for(int j = A.row_ptr[r]; j < A.row_ptr[r+1]; ++j){
-            sum += A.values[j]*x[A.col_idx[j]];
+            if(A.col_idx[j] == r){
+                diag[r] = 1.0/A.values[j]; 
+                break;
+            }
         }
-        y[r] = sum;
     }
-}
-
-inline void axpy(double a, const vector<double>& x, vector<double>& y){
-    // y += a x
-    if(x.size() != y.size()) throw std::runtime_error("In axpy: vectors are not of the same dimension, (dimX,dimY) = (" + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
-    for(size_t i = 0; i < x.size(); ++i) y[i] += a*x[i];
-}
-
-inline double dot(const vector<double>& x, const vector<double>& y){
-    if(x.size() != y.size()) throw std::runtime_error("In dot: vectors are not of the same dimension, (dimX,dimY) = (" + std::to_string(x.size()) + ", " + std::to_string(y.size()) + ")");
-    double sum = 0.0;
-    for(size_t i = 0; i < x.size(); ++i) sum += x[i]*y[i];
-    return sum;
-}
-
-inline vector<double> extract_principal_subvector(const vector<double>& v, const vector<int>& map, int dim_subvec){
-    if(map.size() != v.size()) throw std::runtime_error("In extract_principal_subvector: index map and vector are not of the same dimension, (dimMap,dimV) = (" + std::to_string(map.size()) + ", " + std::to_string(v.size()) + ")");
-    vector<double> result(dim_subvec,0.0);
-    // map[i] == -1 -> index is red, map[i] != -1 index is green
-    // this function creates a subvector which contains only green-indexed elements
-    for(size_t i = 0; i < v.size(); ++i){
-        if(map[i] == - 1) continue; 
-        else result[map[i]] = v[i]; 
+    for(size_t i = 0; i < diag.size(); ++i){
+        if(diag[i] <= 0 || !std::isfinite(diag[i])) throw std::runtime_error("In inverse_diagonal: diagonal entry missing or not positive, matrix is not SPD, (row,1/value) = (" + std::to_string(i) + ", " + std::to_string(diag[i]) + ")");
     }
-    return result;
+    return diag;
+}
+
+inline void apply_jacobi(const vector<double>& inv_diag,const vector<double>& v,vector<double>& result){
+    for(size_t i = 0; i < result.size(); ++i) result[i] = inv_diag[i] * v[i];
 }
 
 } // namespace fem
