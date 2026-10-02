@@ -180,6 +180,33 @@ Keep CG written only against `spmv`, `dot`, `axpy`, `nrm2` and a preconditioner 
 - **Waves:** time domain (real, explicit, lumped M, CFL) vs frequency domain (complex, indefinite, GMRES/BiCGSTAB, PML).
 - **Complex:** `std::complex<double>`, cuBLAS `Z` routines, cuSPARSE `CUDA_C_64F`, COCG for complex symmetric systems.
 
+## Idea: defining problems easily
+
+The point of the solver is weird problems: any function on a boundary, grounded somewhere else, an anisotropic ε with cross terms in between. Setting one up should take a minute, not a conversation.
+
+gmsh already tags things, names included. My code just gives the tags meaning. So names are the link between geometry and physics, and tag numbers never show up.
+
+**A scene file in Python**, geometry and physics in one place:
+
+```python
+ground    = Circle((0, 0),   2.0, name="ground")
+electrode = Circle((0.5, 0), 0.5, name="electrode")
+Region(ground - electrode, name="air", eps=[[2, 0.5], [0.5, 1]])
+BC("electrode", dirichlet="5*cos(theta)")
+BC("ground",    dirichlet=0)
+solve(h=0.05).plot("u", "E")
+```
+
+- Shapes and booleans are a thin wrapper over gmsh's Python API (OpenCASCADE does the booleans).
+- It writes the `.msh` and a `problem.json`, runs `./fem problem.json`, reads the result back.
+- In a notebook: change a number, rerun, look.
+
+**Needs on the C++ side:** read `problem.json`, evaluate expression strings (tinyexpr or exprtk) so nothing gets recompiled, write the solution out.
+
+**Checks:** ε symmetric positive definite, boundaries without a BC default to insulating (with a warning), warn if there's no Dirichlet boundary, parse expressions before meshing.
+
+**Later maybe:** a drawing UI (Streamlit/NiceGUI, or PySide6 + pyvista) that just produces the same scene.
+
 ## Reading
 
 **FEM and solvers**

@@ -105,7 +105,7 @@ TEST_CASE("validate: each fault is reported"){
 
 // Loading runs gmsh, so each fixture is meshed once and shared between cases.
 static const Mesh& square_mesh(){
-    static const Mesh mesh = load_mesh("tests/data/square.geo");
+    static const Mesh mesh = load_mesh(TEST_DATA_DIR "square.geo");
     return mesh;
 }
 
@@ -134,6 +134,6 @@ TEST_CASE("load_mesh: unit square fixture"){
 }
 
 TEST_CASE("load_mesh: missing file and wrong extension throw"){
-    CHECK_THROWS_WITH_AS(load_mesh("tests/data/does_not_exist.geo"), Contains("does not exist"), std::runtime_error);
-    CHECK_THROWS_WITH_AS(load_mesh("Makefile"), Contains("not accepted"), std::runtime_error);
+    CHECK_THROWS_WITH_AS(load_mesh(TEST_DATA_DIR "does_not_exist.geo"), Contains("does not exist"), std::runtime_error);
+    CHECK_THROWS_WITH_AS(load_mesh(TEST_DATA_DIR "../doctest.h"), Contains("not accepted"), std::runtime_error);
 }

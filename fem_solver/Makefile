@@ -24,6 +24,8 @@ all: fem
 fem: main.cpp mesh/mesh.cpp $(HEADERS) | $(GMSH_SO)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) main.cpp mesh/mesh.cpp $(LDFLAGS) $(LDLIBS) -o $@
 
+# Absolute path to the fixtures, so ./run_tests works from any folder
+run_tests: CPPFLAGS += -DTEST_DATA_DIR='"$(CURDIR)/tests/data/"'
 run_tests: $(TESTS) mesh/mesh.cpp $(HEADERS) tests/doctest.h | $(GMSH_SO)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TESTS) mesh/mesh.cpp $(LDFLAGS) $(LDLIBS) -o $@
 
