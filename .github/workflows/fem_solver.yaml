@@ -15,9 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # TODO 1: install the system libraries libgmsh.so needs (apt-get)
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libglu1-mesa
 
-      # TODO 2: create .venv and pip install -r requirements.txt
       - name: Set up Python env
         run: |
           python3 -m venv .venv
