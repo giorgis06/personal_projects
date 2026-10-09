@@ -1,0 +1,27 @@
+name: fem_solver
+
+on:
+  push:
+    paths: ["fem_solver/**",".github/workflows/fem_solver.yaml"]
+  pull_request:
+    paths: ["fem_solver/**",".github/workflows/fem_solver.yaml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: fem_solver
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO 1: install the system libraries libgmsh.so needs (apt-get)
+
+      # TODO 2: create .venv and pip install -r requirements.txt
+      - name: Set up Python env
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Run tests
+        run: make test
