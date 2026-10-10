@@ -3,14 +3,14 @@
 #include <array>
 #include <map>
 
-namespace fem{
+namespace fem {
 
-struct Material{
-    std::array<double,3> EPSILON; // exx,eyy,exy
-    std::array<double,3> MU;
-    std::array<double,3> SIGMA;
+struct Material {
+  std::array<double, 3> EPSILON; // exx,eyy,exy
+  std::array<double, 3> MU;
+  std::array<double, 3> SIGMA;
 };
 
-using Materials = std::map<int,Material>;
+using Materials = std::map<int, Material>;
 
-} //namespace fgem
+} // namespace fem
