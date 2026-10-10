@@ -1,0 +1,27 @@
+name: fem_solver
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["fem_solver/**",".github/workflows/fem_solver.yaml"]
+
+jobs:
+  test:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: fem_solver
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libglu1-mesa
+
+      - name: Set up Python env
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Run tests
+        run: make test
