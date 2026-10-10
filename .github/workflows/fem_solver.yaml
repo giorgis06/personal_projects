@@ -1,13 +1,13 @@
 name: fem_solver
 
 on:
-  push:
-    paths: ["fem_solver/**",".github/workflows/fem_solver.yaml"]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: ["fem_solver/**",".github/workflows/fem_solver.yaml"]
 
 jobs:
   test:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
     defaults:
       run:
