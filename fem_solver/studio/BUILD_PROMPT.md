@@ -14,6 +14,7 @@ Some context the plan assumes you understand:
 - The owner cares a great deal about structure. Their C++ is split into small files grouped by meaning, and the plan's folder layout mirrors that. Follow the layout as written. If a module you are writing wants to do two jobs, split it. If you believe the layout is wrong for something you have discovered, stop and say so instead of quietly deviating.
 - The app must stay extensible to other physics and other solvers. The two interfaces in the plan (ProblemType and SolverBackend) are how. If you find yourself writing electrostatics-specific code outside `physics/electrostatics/`, or importing Qt outside `ui/`, that is a design error to fix, not a shortcut to take.
 - Names, never gmsh tag numbers, connect geometry to physics.
+- The look and arrangement of the window are already decided: the "Workbench" design in the plan's "Window design" section, pictured in `fem_solver/studio/design/workbench.html`. Build that. Do not propose or substitute a different layout, palette or set of fonts, and keep every visual value in the theme module as the plan says.
 
 How to work:
 

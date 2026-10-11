@@ -12,9 +12,11 @@ The app is a front end over one data object, the **Scene**: geometry plus physic
 
 Read these before writing anything:
 
+- `CLAUDE.md` at the repository root and `fem_solver/CLAUDE.md`: the repository's rules on git, structure and reporting. They apply to this work; where this plan is more specific, this plan wins.
 - `fem_solver/README.md`: the maths, the layout, and the scene-file idea.
 - `fem_solver/problem/`, `fem_solver/materials/`, `fem_solver/mesh/mesh.h`: what a problem consists of on the C++ side. A material is a symmetric 2x2 tensor per region, a boundary condition is Dirichlet, Neumann or Robin per boundary, the source is a function of (x, y).
-- `fem_solver/meshes/cap.geo` and `fem_solver/tests/data/*.geo`: example geometries. Regions and boundaries are gmsh physical groups with names such as `"glass"`, `"inner_electrode"`.
+- `fem_solver/tests/data/*.geo`: example geometries, tracked in git. Regions and boundaries are gmsh physical groups with names such as `"glass"`, `"outer"`. `two_materials.geo` is the one with two named regions and an interface.
+- `fem_solver/meshes/cap.geo`: the cylindrical capacitor (inner electrode, glass shell, air, outer wall). It is the reference example for this app, but the `meshes/` folder is gitignored, so the file exists on the owner's machine only and is absent in continuous integration. Read it to learn the geometry; never make a test depend on it.
 - `fem_solver/requirements.txt` and `fem_solver/.venv`: Python 3.10 with numpy, scipy, matplotlib, meshio, pytest and gmsh 4.15.2 already installed.
 
 Two facts that shape the plan:
@@ -32,6 +34,7 @@ Two facts that shape the plan:
 - Dependencies are limited to the list under "Stack". Ask before adding another.
 - Generated files (meshes, results, project run folders) are never committed.
 - The whole app is developed on the long-lived branch `ui/base-branch`, which is merged into `master` once, at the end. Each milestone is its own branch cut from `ui/base-branch` and lands as one pull request back into `ui/base-branch`. Never commit to `ui/base-branch` or `master` directly.
+- Linting and formatting are configured once, in `ruff.toml` at the repository root. Do not add a `[tool.ruff]` section or a second ruff config under `studio/`: the nearest config wins, so it would silently replace the shared one. A repository hook already runs ruff on every Python file as it is written.
 - Every milestone ends with `ruff check`, `ruff format --check` and `pytest` passing, and a short report of what was built, what was verified and how, and what was not verified.
 
 ## Stack
@@ -47,6 +50,8 @@ Two facts that shape the plan:
 ```
 fem_solver/studio/
   ORCHESTRATOR.md  BUILD_PROMPT.md  README.md  requirements.txt  pyproject.toml
+  design/
+    workbench.html           view-only reference mockup of the main window
   femstudio/
     __main__.py              python -m femstudio
     core/
@@ -85,10 +90,20 @@ fem_solver/studio/
       executable.py          runs `fem problem.json`, streams the log
       mock.py                analytic field, no solver needed
     ui/
-      main_window.py
-      panels/                geometry, physics, mesh, solve, results (one file each)
-      views/                 geometry_view, mesh_view, heatmap_view, surface_view
-      widgets/               expression_edit, tensor_edit, log_view
+      main_window.py         assembles the regions below; holds no logic of its own
+      theme/
+        tokens.py            every colour, font and spacing value, by name
+        stylesheet.py        builds the Qt stylesheet from the tokens
+      shell/
+        workflow_bar.py      the five step tabs, backend selector, Run button
+        scene_dock.py        the Scene tree (left)
+        properties_dock.py   hosts the current panel (right)
+        log_dock.py          solver output (bottom)
+        status_bar.py        validation summary and mesh counts
+        viewport.py          the tabbed centre area that hosts the views
+      panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock
+      views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
+      widgets/               expression_edit, tensor_edit
       workers/               solve_worker (keeps the window responsive)
   tests/                     mirrors femstudio/ folder by folder
   examples/                  capacitor.py and capacitor.scene.json
@@ -167,21 +182,72 @@ Run before meshing, shown in the window as a list with the offending name:
 - no Dirichlet boundary at all is a warning (solution defined only up to a constant);
 - names are unique and non-empty.
 
+## Window design: Workbench
+
+The owner chose this design from four mockups. It is settled: build this layout and do not substitute another. `design/workbench.html` is the reference picture (open it in a browser; it is view-only and its numbers are examples). This section is the specification, and wins where the two differ.
+
+### Regions
+
+The main window is a `QMainWindow`. From top to bottom:
+
+| Region | Content | Behaviour |
+|---|---|---|
+| Menu bar | File, Edit, View, Run, Help | View lists every dock so a closed one can be reopened |
+| Workflow bar | Five step tabs in order: Geometry, Physics, Mesh, Solve, Results. On the right, the backend selector and the Run button | Choosing a step selects the matching panel in the Properties dock and the most useful viewport tab for it. It never hides the Scene dock or blocks going back to an earlier step |
+| Scene dock (left) | A tree with four groups: Shapes, Regions, Boundaries, Runs. Each row is a name and a short value summary (`glass  eps 4`, `inner_electrode  5 V`, `run 3  0.41 s`) | Selecting a row shows its fields in the Properties dock and highlights it in the viewport. Selecting a run loads its result |
+| Viewport (centre) | Tabs: Heatmap, 3D surface, Mesh, Geometry. Field views have a colour bar with value and unit labels on their right | The only region that stretches; docks keep their width when the window grows |
+| Properties dock (right) | The panel for the current step and selection, generated from the ProblemType. On Results it holds a Display group (field, range, colour map, mesh overlay on or off) and the Probe readout | Edits apply to the Scene immediately and re-run validation |
+| Log dock (bottom) | Solver and mesher output as it arrives | Monospace, read-only, scrolls to the newest line |
+| Status bar | Validation summary (errors and warnings), node count, triangle count, mesh size | Clicking the validation summary opens the list of findings |
+
+The three docks are `QDockWidget`s: movable, closable, and restored to this default arrangement by View > Reset layout.
+
+### How the regions map to code
+
+- One step in the workflow bar corresponds to one file in `ui/panels/`.
+- One viewport tab corresponds to one file in `ui/views/`.
+- Each region in the table is one file in `ui/shell/`. `main_window.py` only assembles them and connects their signals.
+- Adding a problem type adds no file under `ui/`: its forms come from the ProblemType.
+
+### Look
+
+All visual values live in `ui/theme/tokens.py` and nowhere else. No colour, font name or pixel size is written literally in any other module; a test checks `ui/` for colour literals outside `theme/`.
+
+| Token | Value | Used for |
+|---|---|---|
+| `panel` | `#eceff2` | window background, dock title strips |
+| `surface` | `#ffffff` | dock bodies, workflow bar, input fields |
+| `stage` | `#f7f8fa` | viewport background |
+| `chrome` | `#dfe4e9` | menu bar, status bar |
+| `ink` | `#1b242d` | text |
+| `muted` | `#647180` | secondary text, value summaries, inactive tabs |
+| `rule` | `#c9d1d9` | every border and divider, 1 px |
+| `selection` | `#dbe8fb` | selected tree row |
+| `accent` | `#1d5fb8` | active step, Run button, focus ring |
+| `success` | `#1e7d4b` | passed checks, completed run |
+| `warning` | `#a15c00` | validation warnings |
+| `error` | `#b3261e` | validation errors, failed run |
+
+- **Type:** IBM Plex Sans for the interface and IBM Plex Mono for numbers, expressions, tensor entries and the log. Do not bundle font files; when the fonts are not installed, fall back to the system interface font and the system monospace font. Base size 10 pt, dock titles 9 pt uppercase.
+- **Density:** compact. Rows about 22 px high, 1 px rules instead of shadows, corner radius no larger than 4 px.
+- **Colour maps:** `viridis` by default. Offer `viridis`, `inferno` and `coolwarm`, with `coolwarm` meant for fields that change sign. The colour map is data colour, separate from the interface tokens.
+- **Theme:** light only for now. Because every value is a token, a dark set can be added later without touching the widgets.
+
 ## Milestones
 
 Each is one pull request and ends with a stop for review.
 
 | # | Scope | Done when |
 |---|---|---|
-| M0 | Scaffold: folders, `pyproject.toml`, `requirements.txt`, ruff config, empty window that opens, README with run instructions | `python -m femstudio` opens a window; lint and an initial test pass |
-| M1 | `core/scene`, `core/expressions`, serialization, validation | A scene built in code round-trips through `scene.json`; every validation rule has a passing and a failing test; no Qt import in `core/` (enforced by a test) |
-| M2 | `core/mesh`: mesher, reader, quality | The capacitor scene meshes to a `.msh` whose physical names match the scene; `tests/data/*.geo` and `meshes/cap.geo` load into MeshData |
+| M0 | Scaffold: folders, `pyproject.toml` (package metadata and pytest settings only), `requirements.txt`, an empty `QMainWindow` that opens (the Workbench layout itself arrives in M5), README with run instructions, and the architecture test that forbids Qt and PyVista imports outside `ui/` | `python -m femstudio` opens a window; lint passes; `pytest -m "not ui and not real_solver"` collects and passes at least one test, so the CI job goes green |
+| M1 | `core/scene`, `core/expressions`, serialization, validation, and the capacitor written as a scene in `examples/` | A scene built in code round-trips through `scene.json`; every validation rule has a passing and a failing test; no Qt import in `core/` (enforced by a test) |
+| M2 | `core/mesh`: mesher, reader, quality | The capacitor scene from `examples/` meshes to a `.msh` whose physical names match the scene; every `fem_solver/tests/data/*.geo` loads into MeshData with its named regions and edges |
 | M3 | `physics/`: interface, registry, electrostatics spec and `problem.json` writer | Written file matches the contract; schema covered by tests |
 | M4 | `backends/`, `core/results`, `core/project` | Mock backend produces a field end to end; executable backend passes tests against a fake `fem` script covering success, failure and missing binary |
-| M5 | Window shell and viewing: open `.geo` / `.msh` / project, geometry and mesh views, regions and boundaries coloured and listed by name | The capacitor opens and its named parts can be highlighted |
+| M5 | The Workbench window from "Window design": theme tokens and stylesheet, every region in `ui/shell/`, opening a `.geo` / `.msh` / project, the Geometry and Mesh viewport tabs, regions and boundaries coloured and listed by name in the Scene dock | The capacitor opens; selecting a row in the Scene dock highlights that part; the window matches the reference mockup's arrangement; the colour-literal test passes |
 | M6 | Geometry editing: add shapes from forms, boolean operations, naming, live preview, undo | The capacitor can be rebuilt from an empty scene in the window |
-| M7 | Physics, mesh and solve panels generated from the ProblemType; validation list; background solve with live log | A full run with the mock backend from the window, window stays responsive |
-| M8 | Results: heatmap, 3D surface (height = value), mesh overlay, colour range control, field selector including derived fields, value probe on click | Both views show the same run; probe value matches the field array |
+| M7 | Physics, mesh and solve panels generated from the ProblemType and shown in the Properties dock; validation summary in the status bar; background solve with live output in the Log dock | A full run with the mock backend from the window, window stays responsive |
+| M8 | Results: the Heatmap and 3D surface viewport tabs (height = value), colour bar, and the Display group and Probe readout in the Properties dock (field selector including derived fields, range, colour map, mesh overlay) | Both views show the same run; probe value matches the field array |
 | M9 | Extras, chosen by the owner from the list below | per item |
 
 ## Proposed extras (for M9 and later)
@@ -200,13 +266,13 @@ Each is one pull request and ends with a stop for review.
 Tests are how each milestone proves its "Done when" condition, so they are written with the code, not after it.
 
 - **Where:** `studio/tests/` mirrors `femstudio/` folder by folder (`tests/core/scene/test_validation.py` tests `core/scene/validation.py`).
-- **Two kinds, kept apart by a marker.** Tests of `core/`, `physics/` and `backends/` need no display and carry no marker. Tests that create a window carry `@pytest.mark.ui`, use pytest-qt with `QT_QPA_PLATFORM=offscreen`, and are limited to "opens, loads the example, does not raise". Register the marker in `pyproject.toml`.
+- **Two kinds, kept apart by a marker.** Tests of `core/`, `physics/` and `backends/` need no display and carry no marker. Tests that create a window carry `@pytest.mark.ui`, use pytest-qt with `QT_QPA_PLATFORM=offscreen`, and are limited to "opens, loads the example, does not raise". Register both markers used in this plan, `ui` and `real_solver`, in `pyproject.toml`, and turn on strict marker checking so a mistyped marker fails instead of silently running.
 - **What a test must check.** A real expected value, worked out independently of the code under test: a known area, a known node count for a fixed mesh size, a hand-written `problem.json`, an analytic field. A test that only checks "no exception" is acceptable for window smoke tests and nowhere else.
 - **Every rule has a failing case.** Each validation rule, each backend error path (non-zero exit, missing binary, malformed result) and each expression-grammar rejection has a test that triggers it.
 - **Architecture is tested too.** One test walks `core/`, `physics/` and `backends/` and fails if any module imports Qt or PyVista. One test fails if a tag number appears in a serialized scene.
-- **Fixtures come from the solver's own examples** (`fem_solver/tests/data/*.geo`, `fem_solver/meshes/cap.geo`), read in place, never copied.
+- **Fixtures come from the solver's tracked examples** (`fem_solver/tests/data/*.geo`), read in place, never copied. The capacitor is rebuilt as a scene under `studio/examples/` in M1 and tests use that; nothing may read `fem_solver/meshes/`, which is not in git.
 - **The fake solver.** `tests/backends/fake_fem.py` is a small script that honours the contract (reads `problem.json`, writes `solution.csv` and `run.json`, can be told to fail). The executable backend is tested against it. When the real `fem` gains its command-line interface, one extra test marked `@pytest.mark.real_solver` runs the capacitor through it and is skipped when the binary is absent.
-- **Continuous integration** runs `pytest -m "not ui and not real_solver"` on every pull request that touches `studio/`. Run the `ui` tests locally before reporting a window milestone done.
+- **Continuous integration** (`.github/workflows/studio-tests.yaml`) runs `pytest -m "not ui and not real_solver"` on every pull request that touches `studio/`, after installing `fem_solver/requirements.txt` and `studio/requirements.txt`. pytest fails when it collects no tests, so there must always be at least one unmarked test. Run the `ui` tests locally before reporting a window milestone done.
 - **Reporting.** A claim that something works in the window must say whether it was run on screen, run offscreen, or only unit-tested.
 
 ## Status
