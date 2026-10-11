@@ -1,4 +1,31 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git branch -D *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh repo delete *)",
+      "Bash(chmod -R *)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Edit(fem_solver/tests/doctest.h)",
+      "Edit(fem_solver/mesh/gmsh.h)"
+    ],
+    "ask": [
+      "Bash(rm -r *)",
+      "Bash(rm -R *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Edit(.claude/**)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
