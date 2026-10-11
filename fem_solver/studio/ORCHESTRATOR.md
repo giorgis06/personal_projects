@@ -285,7 +285,7 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 | not started | |
+| M0 | in review | Window opens (run offscreen and started under X11, not inspected by eye). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
 | M1 | not started | |
 | M2 | not started | |
 | M3 | not started | |
