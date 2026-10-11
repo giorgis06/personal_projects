@@ -5,5 +5,5 @@ jobs:
       runs-on: ubuntu-22.04
       steps:
          - uses: actions/checkout@v4
-         - run: pipx run ruff check.
+         - run: pipx run ruff check
          - run: pipx run ruff format --check
