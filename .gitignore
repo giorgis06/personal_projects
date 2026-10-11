@@ -40,3 +40,6 @@ fem_solver/meshes
 
 # Inverted Pendulum work
 inverted_pendulum
+
+# Bear
+fem_solver/compile_commands.json

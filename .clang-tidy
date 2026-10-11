@@ -1,0 +1,2 @@
+Checks: '-*,bugprone-*,performance-*,clang-analyzer-*'
+HeaderFilterRegex: '(linalg|mesh|solver|problem|materials)/.*'
