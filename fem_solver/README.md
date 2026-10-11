@@ -189,11 +189,11 @@ gmsh already tags things, names included. My code just gives the tags meaning. S
 **A scene file in Python**, geometry and physics in one place:
 
 ```python
-ground    = Circle((0, 0),   2.0, name="ground")
+ground = Circle((0, 0), 2.0, name="ground")
 electrode = Circle((0.5, 0), 0.5, name="electrode")
 Region(ground - electrode, name="air", eps=[[2, 0.5], [0.5, 1]])
 BC("electrode", dirichlet="5*cos(theta)")
-BC("ground",    dirichlet=0)
+BC("ground", dirichlet=0)
 solve(h=0.05).plot("u", "E")
 ```
 
