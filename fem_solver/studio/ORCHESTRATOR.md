@@ -35,6 +35,12 @@ Two facts that shape the plan:
 - Generated files (meshes, results, project run folders) are never committed.
 - The whole app is developed on the long-lived branch `ui/base-branch`, which is merged into `master` once, at the end. Each milestone is its own branch cut from `ui/base-branch` and lands as one pull request back into `ui/base-branch`. Never commit to `ui/base-branch` or `master` directly.
 - Linting and formatting are configured once, in `ruff.toml` at the repository root. Do not add a `[tool.ruff]` section or a second ruff config under `studio/`: the nearest config wins, so it would silently replace the shared one. A repository hook already runs ruff on every Python file as it is written.
+- Be laconic everywhere you write prose. The owner reads all of it, and every extra line costs them time.
+  - **Code comments:** only for what the code cannot say itself, such as a non-obvious reason, a constraint or a unit. One line. No comment that restates the code, no banner or divider comments, no notes about what was changed.
+  - **Docstrings:** one line on public classes and functions. None on private helpers or on tests whose names already say what they check.
+  - **Commit messages:** one subject line of at most 72 characters. Add a body only when the reason is not obvious, and keep it to three lines.
+  - **Pull request descriptions:** at most eight lines: what it adds, how it was verified, what was not verified. Do not walk through the diff file by file.
+  - **Reports, summaries and status notes:** the same limit and content. No preamble, no recap of the plan, no closing offers.
 - Every milestone ends with `ruff check`, `ruff format --check` and `pytest` passing, and a short report of what was built, what was verified and how, and what was not verified.
 
 ## Stack

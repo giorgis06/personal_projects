@@ -31,4 +31,4 @@ Stop and ask the owner, instead of deciding yourself, if:
 - you would need to change the solver contract, the folder layout or the dependency list;
 - anything requires touching files outside `fem_solver/studio/` other than adding lines to `.gitignore`.
 
-When done, report in this order: what now works and how you verified it (say explicitly whether window behaviour was run on screen, run offscreen, or only unit-tested); anything in the milestone you could not complete or verify; any decision you made that the plan did not cover; and what the next milestone will need from the owner. Keep the report short and factual.
+When done, report in this order: what now works and how you verified it (say explicitly whether window behaviour was run on screen, run offscreen, or only unit-tested); anything in the milestone you could not complete or verify; any decision you made that the plan did not cover; and what the next milestone will need from the owner. Keep it to a few lines, and apply the plan's rule on being laconic to everything else you write too: comments, docstrings, commit messages and the pull request description.
