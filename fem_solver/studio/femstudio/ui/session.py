@@ -100,6 +100,9 @@ class Session(QObject):
             self.editRefused.emit(str(error))
             self.logLine.emit(f"[edit] refused: {error}")
             return None
+        except Exception:
+            self._document.scene = self.history.rollback()
+            raise
         self.logLine.emit(f"[edit] {label}")
         self._set_dirty(True)
         self.historyChanged.emit()
@@ -144,6 +147,9 @@ class Session(QObject):
         document = self._document
         if document is None or document.scene is None:
             self.errorRaised.emit("Cannot save", "there is no scene to save")
+            return False
+        if path is None and document.project is None and document.source == UNTITLED:
+            self.errorRaised.emit("Cannot save", "this scene has no file yet: choose a name")
             return False
         try:
             if document.project is not None and path is None:

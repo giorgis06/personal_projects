@@ -389,3 +389,101 @@ def test_a_stored_nan_does_not_stop_the_window_opening(qtbot, settings):
     window = MainWindow(settings)
     qtbot.addWidget(window)
     assert window.status.zoom_text() == "Zoom 100 %"
+
+
+@pytest.fixture
+def dirty(opened, tmp_path):
+    """The capacitor opened from a copy, with one unsaved edit."""
+    import shutil
+
+    copy = tmp_path / "mine.scene.json"
+    shutil.copy(EXAMPLE, copy)
+    assert opened.open_path(copy)
+    opened.properties.panel("Geometry").add_item("circle")
+    assert opened.session.dirty
+    return opened
+
+
+def answer(monkeypatch, choice):
+    asked = []
+    monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: asked.append(1) or choice)
+    return asked
+
+
+@pytest.mark.parametrize("action", ["open", "new", "close"])
+def test_cancel_keeps_unsaved_edits_whatever_asked_to_replace_them(dirty, monkeypatch, action):
+    asked = answer(monkeypatch, "cancel")
+    before = dirty.session.scene
+    result = {
+        "open": lambda: dirty.open_path(DATA / "square.geo"),
+        "new": dirty.new_scene,
+        "close": dirty.close,
+    }[action]()
+    assert result is False and asked == [1]
+    assert dirty.session.scene is before and dirty.session.dirty
+
+
+@pytest.mark.parametrize("action", ["open", "new"])
+def test_discard_replaces_the_scene(dirty, monkeypatch, action):
+    answer(monkeypatch, "discard")
+    ok = dirty.open_path(DATA / "square.geo") if action == "open" else dirty.new_scene()
+    assert ok is True
+    assert not dirty.session.dirty
+    assert dirty.session.scene is None or dirty.session.scene.shapes == []
+
+
+def test_save_writes_the_scene_and_then_opens_the_other_file(dirty, monkeypatch):
+    answer(monkeypatch, "save")
+    target = dirty.document.source
+    assert dirty.open_path(DATA / "square.geo")
+    from femstudio.core.scene.serialization import load_scene
+
+    assert "circle" in [s.name for s in load_scene(target).shapes]
+
+
+def test_a_clean_scene_is_replaced_without_asking(opened, monkeypatch):
+    asked = answer(monkeypatch, "cancel")
+    assert opened.open_path(DATA / "square.geo")
+    assert asked == []
+
+
+def test_closing_a_clean_window_does_not_ask(window, monkeypatch):
+    asked = answer(monkeypatch, "cancel")
+    assert window.close()
+    assert asked == []
+
+
+def test_the_question_names_the_file(opened, monkeypatch):
+    opened.properties.panel("Geometry").add_item("circle")
+    import femstudio.ui.main_window as module
+
+    captured = {}
+
+    class Box:
+        class StandardButton:
+            Save, Discard, Cancel = 1, 2, 4
+
+        def __init__(self, parent):
+            pass
+
+        def setWindowTitle(self, text):
+            captured["title"] = text
+
+        def setText(self, text):
+            captured["text"] = text
+
+        def setStandardButtons(self, buttons):
+            pass
+
+        def setDefaultButton(self, button):
+            pass
+
+        def exec(self):
+            return Box.StandardButton.Discard
+
+    monkeypatch.undo()  # the autouse answer would hide the dialog code
+    monkeypatch.setattr(module, "QMessageBox", Box)
+    assert opened.ask_unsaved() == "discard"
+    assert captured["title"] == "Unsaved changes"
+    assert "capacitor.scene.json" in captured["text"]
+    opened.session._set_dirty(False)

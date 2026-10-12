@@ -215,3 +215,27 @@ def test_the_capacitors_geometry_can_be_built_from_an_empty_scene():
     assert [(b.name, b.curve) for b in scene.boundaries] == [
         (b.name, b.curve) for b in reference.boundaries
     ]
+
+
+def test_a_refused_update_changes_none_of_the_fields(scene):
+    editing.add_shape(scene, Rectangle("r", (0.0, 0.0), 1.0, 1.0))
+    with pytest.raises(EditError, match="height must be positive"):
+        editing.update_shape(scene, "r", width=3.0, height=-1.0)
+    assert scene.shape("r") == Rectangle("r", (0.0, 0.0), 1.0, 1.0)
+
+
+def test_non_numeric_coordinates_are_an_edit_error_not_a_crash(scene):
+    editing.add_shape(scene, Polygon("tri", ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))))
+    with pytest.raises(EditError, match="points"):
+        editing.update_shape(scene, "tri", points=[(0, 0), (1, 0), ("a", 1)])
+    with pytest.raises(EditError, match="must be numbers"):
+        editing.update_shape(scene, "wall", center=("x", 0.0))
+    with pytest.raises(EditError, match="pairs"):
+        editing.update_shape(scene, "tri", points=[(0, 0), (1, 0), (1, 2, 3)])
+    assert scene.shape("tri").points == ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))
+    assert scene.shape("wall").center == (0.0, 0.0)
+
+
+def test_the_editing_functions_are_public(scene):
+    for name in ("add_shape", "update_shape", "rename_shape", "build_area", "add_boundary"):
+        assert callable(getattr(editing, name))

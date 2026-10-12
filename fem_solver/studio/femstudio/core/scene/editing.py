@@ -87,14 +87,43 @@ def add_shape(scene: Scene, shape: Shape) -> Shape:
     return shape
 
 
-def _finite(values: Iterable[float], what: str) -> None:
-    if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values):
+def _numbers(values: Iterable, what: str) -> list[float]:
+    try:
+        numbers = [float(v) for v in values]
+    except (TypeError, ValueError):
+        raise EditError(f"{what} must be numbers") from None
+    if not all(math.isfinite(n) for n in numbers):
         raise EditError(f"{what} must be finite numbers")
+    return numbers
+
+
+def _converted(key: str, value):
+    if key in ("center", "corner"):
+        x, y = _numbers(value, key)
+        return (x, y)
+    if key == "points":
+        points = []
+        for point in value:
+            try:
+                x, y = _numbers(point, "points")
+            except ValueError:
+                raise EditError("points must be (x, y) pairs") from None
+            points.append((x, y))
+        if len(points) < 3:
+            raise EditError("a polygon needs at least three points")
+        return tuple(points)
+    (number,) = _numbers([value], key)
+    if number <= 0:
+        raise EditError(f"{key} must be positive")
+    return number
 
 
 def update_shape(scene: Scene, name: str, **fields) -> Shape:
-    """Change a shape's parameters in place, so regions built from it follow."""
-    shape = scene.shape(name) if any(s.name == name for s in scene.shapes) else None
+    """Change a shape's parameters in place, so regions built from it follow.
+
+    Every value is checked before any is written, so a refused edit changes nothing.
+    """
+    shape = next((s for s in scene.shapes if s.name == name), None)
     if shape is None:
         raise EditError(f"no shape named '{name}'")
     allowed = {
@@ -105,21 +134,8 @@ def update_shape(scene: Scene, name: str, **fields) -> Shape:
     unknown = set(fields) - allowed
     if unknown:
         raise EditError(f"a {type(shape).__name__.lower()} has no {', '.join(sorted(unknown))}")
-    for key, value in fields.items():
-        if key in ("center", "corner"):
-            _finite(value, key)
-            value = (float(value[0]), float(value[1]))
-        elif key == "points":
-            points = tuple((float(x), float(y)) for x, y in value)
-            _finite([c for p in points for c in p], "points")
-            if len(points) < 3:
-                raise EditError("a polygon needs at least three points")
-            value = points
-        else:
-            _finite([value], key)
-            if value <= 0:
-                raise EditError(f"{key} must be positive")
-            value = float(value)
+    converted = {key: _converted(key, value) for key, value in fields.items()}
+    for key, value in converted.items():
         setattr(shape, key, value)
     return shape
 

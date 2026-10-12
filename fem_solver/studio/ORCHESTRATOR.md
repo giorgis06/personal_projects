@@ -29,7 +29,7 @@ Two facts that shape the plan:
 - Work only inside `fem_solver/studio/`. The one exception is adding lines to the repo's `.gitignore`.
 - `core/`, `physics/` and `backends/` never import Qt or PyVista. Only `ui/` does. This is what keeps the Scene usable from a notebook and the logic testable without a display.
 - The Scene and the window never show or store gmsh tag numbers. Names only. Tag numbers are assigned in one place, the mesher, when it writes the `.msh`.
-- One concept per module, grouped into folders by meaning, following the C++ side (`mesh/`, `linalg/`, `problem/`, `solver/electrostatics/`). No module that mixes concerns, no `utils.py`, and split any file that grows past roughly 250 lines.
+- One concept per module, grouped into folders by meaning, following the C++ side (`mesh/`, `linalg/`, `problem/`, `solver/electrostatics/`). No module that mixes concerns and no `utils.py`. Split a file when it starts doing a second job; length alone is not the test.
 - A new problem type or backend is registered, never special-cased. No `if problem_type == "electrostatics"` outside `physics/electrostatics/`.
 - Dependencies are limited to the list under "Stack". Ask before adding another.
 - Generated files (meshes, results, project run folders) are never committed.

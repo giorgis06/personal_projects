@@ -413,3 +413,43 @@ def test_forms_fit_inside_the_properties_dock(opened, panel, kind, name):
         if hasattr(widget, "isVisible") and widget.isVisible() and hasattr(widget, "mapTo"):
             right = widget.mapTo(panel, widget.rect().topRight()).x()
             assert right <= width + 1, f"{widget.objectName() or type(widget).__name__} clips"
+
+
+def _shown(panel, key) -> bool:
+    from PySide6.QtWidgets import QApplication
+
+    for _ in range(3):  # new widgets are shown when the layout's posted events run
+        QApplication.processEvents()
+    return panel.field(key).isVisibleTo(panel)
+
+
+@pytest.mark.parametrize(
+    ("kind", "shown"),
+    [
+        ("Outline of a shape", {"shape"}),
+        ("Side of a shape", {"shape", "side"}),
+        ("Between regions", {"first", "second"}),
+    ],
+)
+def test_the_boundary_form_shows_only_the_fields_its_curve_uses(opened, panel, kind, shown):
+    opened.scene_dock.select("boundary", "inner_electrode")
+    panel.field("curve_kind").setCurrentText(kind)
+    assert {k for k in ("shape", "side", "first", "second") if _shown(panel, k)} == shown
+
+
+def test_a_new_boundary_starts_as_an_outline_without_the_other_fields(opened, panel):
+    panel.add_item("boundary")
+    assert _shown(panel, "shape")
+    assert not any(_shown(panel, k) for k in ("side", "first", "second"))
+
+
+def test_the_side_list_follows_the_chosen_shape(empty, panel):
+    panel.add_item("rectangle")
+    panel.add_item("circle")
+    panel.add_item("boundary")
+    panel.field("curve_kind").setCurrentText("Side of a shape")
+    panel.field("shape").setCurrentText("rectangle")
+    sides = [panel.field("side").itemText(i) for i in range(panel.field("side").count())]
+    assert sides == ["bottom", "right", "top", "left"]
+    panel.field("shape").setCurrentText("circle")
+    assert panel.field("side").count() == 0

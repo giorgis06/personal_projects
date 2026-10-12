@@ -5,18 +5,16 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
-    QFileDialog,
-    QInputDialog,
     QMainWindow,
     QMessageBox,
     QToolBar,
-    QWidget,
 )
 
 from femstudio.backends import registry as backends
 from femstudio.core.project.document import Document
 from femstudio.physics import registry as physics
-from femstudio.ui.session import UNTITLED, Session
+from femstudio.ui.session import Session
+from femstudio.ui.shell.file_actions import FileActions
 from femstudio.ui.shell.log_dock import LogDock
 from femstudio.ui.shell.menu_bar import MainMenuBar
 from femstudio.ui.shell.properties_dock import PropertiesDock
@@ -24,9 +22,8 @@ from femstudio.ui.shell.scene_dock import SceneDock
 from femstudio.ui.shell.status_bar import StatusPanel
 from femstudio.ui.shell.viewport import TAB_FOR_STEP, Viewport
 from femstudio.ui.shell.workflow_bar import WorkflowBar
+from femstudio.ui.theme import stylesheet, zoom
 from femstudio.ui.theme import tokens as t
-from femstudio.ui.theme import zoom
-from femstudio.ui.theme.stylesheet import build_stylesheet, resolve_fonts
 
 TITLE = "FEM Studio"
 SOLVING_LATER = "Solving from the window arrives with the solve panel."
@@ -43,6 +40,7 @@ class MainWindow(QMainWindow):
         self.resize(zoom.px(t.WINDOW_WIDTH), zoom.px(t.WINDOW_HEIGHT))
         self._laid_out = False
         self.session = Session()
+        self._files = FileActions(self, self.session)
 
         self.menu = MainMenuBar()
         self.setMenuBar(self.menu)
@@ -80,10 +78,10 @@ class MainWindow(QMainWindow):
 
         menu = self.menu
         menu.newSceneRequested.connect(self.new_scene)
-        menu.openFileRequested.connect(self._choose_file)
-        menu.openFolderRequested.connect(self._choose_folder)
+        menu.openFileRequested.connect(self._files.choose_file)
+        menu.openFolderRequested.connect(self._files.choose_folder)
         menu.saveRequested.connect(self.save)
-        menu.saveAsRequested.connect(self._choose_save_path)
+        menu.saveAsRequested.connect(self._files.choose_save_path)
         menu.undoRequested.connect(self.session.undo)
         menu.redoRequested.connect(self.session.redo)
         menu.quitRequested.connect(self.close)
@@ -122,13 +120,7 @@ class MainWindow(QMainWindow):
 
     def _apply_zoom(self) -> None:
         factor = zoom.current()
-        sans, mono = resolve_fonts(factor)
-        self.setFont(sans)
-        self.setStyleSheet(build_stylesheet(sans.family(), mono.family(), factor))
-        for widget in self.findChildren(QWidget):
-            hook = getattr(widget, "apply_zoom", None)
-            if callable(hook):
-                hook()
+        stylesheet.apply(self, factor)
         self._size_docks()
         self.status.set_zoom(factor)
         self.menu.set_zoom_limits(factor < zoom.MAXIMUM, factor > zoom.MINIMUM)
@@ -161,6 +153,9 @@ class MainWindow(QMainWindow):
             self.reset_layout()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._files.confirm_discard():
+            event.ignore()
+            return
         self.viewport.close_views()
         self.session.close()
         super().closeEvent(event)
@@ -171,42 +166,27 @@ class MainWindow(QMainWindow):
 
     # -- files and the scene being edited
 
+    def ask_unsaved(self) -> str:
+        """Ask what to do with unsaved edits: "save", "discard" or "cancel"."""
+        buttons = QMessageBox.StandardButton
+        box = QMessageBox(self)
+        box.setWindowTitle("Unsaved changes")
+        box.setText(f"Save the changes to {self.session.document.source.name}?")
+        box.setStandardButtons(buttons.Save | buttons.Discard | buttons.Cancel)
+        box.setDefaultButton(buttons.Save)
+        answer = box.exec()
+        return {buttons.Save: "save", buttons.Discard: "discard"}.get(answer, "cancel")
+
     def open_path(self, path: Path) -> bool:
         """Open a project folder, `scene.json`, `.msh` or `.geo`; the reason is shown on failure."""
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            return self.session.open_path(Path(path))
-        finally:
-            QApplication.restoreOverrideCursor()
+        return self._files.open_path(path)
 
     def new_scene(self) -> bool:
-        types = [p.name for p in physics.available()]
-        if not types:
-            self.report_error("New scene", "no problem type is available")
-            return False
-        problem = types[0]
-        if len(types) > 1:
-            problem, chosen = QInputDialog.getItem(
-                self, "New scene", "Problem type", types, 0, False
-            )
-            if not chosen:
-                return False
-        self.session.new_scene(problem)
-        return True
+        return self._files.new_scene()
 
     def save(self, path: Path | None = None) -> bool:
         """Save into the project, to `path`, or ask for a name when the scene has none yet."""
-        document = self.session.document
-        if path is None and document is not None and document.project is None:
-            if document.source == UNTITLED or document.source.suffix != ".json":
-                return self._choose_save_path()
-        return self.session.save(path)
-
-    def _choose_save_path(self) -> bool:
-        path, _ = QFileDialog.getSaveFileName(self, "Save scene", "", "Scene (*.json)")
-        if not path:
-            return False
-        return self.session.save(Path(path))
+        return self._files.save(path)
 
     def report_error(self, title: str, message: str) -> None:
         QMessageBox.critical(self, title, message)
@@ -243,17 +223,6 @@ class MainWindow(QMainWindow):
             return
         mark = "*" if self.session.dirty else ""
         self.setWindowTitle(f"{TITLE} - {document.source.name}{mark}")
-
-    def _choose_file(self) -> None:
-        text = "Scene or mesh (*.json *.msh *.geo)"
-        path, _ = QFileDialog.getOpenFileName(self, "Open", "", text)
-        if path:
-            self.open_path(Path(path))
-
-    def _choose_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Open project folder")
-        if path:
-            self.open_path(Path(path))
 
 
 def run(argv: list[str] | None = None) -> int:

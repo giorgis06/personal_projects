@@ -136,3 +136,25 @@ def test_edits_that_make_the_scene_unmeshable_still_show_the_scene(session):
     assert "named by no boundary" in session.document.mesh_error
     session.undo()
     assert session.document.mesh is not None
+
+
+def test_an_unexpected_failure_inside_an_edit_rolls_back_and_is_raised(session):
+    session.open_path(EXAMPLE)
+
+    def broken(scene):
+        editing.update_shape(scene, "wall", radius=9.0)
+        raise RuntimeError("bug")
+
+    with pytest.raises(RuntimeError, match="bug"):
+        session.edit("broken", broken)
+    assert session.scene.shape("wall").radius == 2.0
+    assert not session.history.can_undo and not session.dirty
+
+
+def test_an_untitled_scene_cannot_be_saved_without_a_name(qtbot, session, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    session.new_scene("electrostatics")
+    with qtbot.waitSignal(session.errorRaised) as signal:
+        assert session.save() is False
+    assert "choose a name" in signal.args[1]
+    assert not (tmp_path / "untitled.scene.json").exists()

@@ -36,6 +36,11 @@ CURVE_KINDS = {
     "side": "Side of a shape",
     "between": "Between regions",
 }
+CURVE_FIELDS = {
+    "outline": ("shape",),
+    "side": ("shape", "side"),
+    "between": ("first", "second"),
+}
 ADD_KINDS = ("circle", "rectangle", "polygon", "region", "boundary")
 LIMIT = 1e9
 MIN_COMBO = 6
@@ -165,6 +170,7 @@ class GeometryPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(zoom.px(t.SECTION_GAP))
         self._widgets, self._operand_rows, self._rows = {}, [], []
+        self._row_widgets: dict[str, QWidget] = {}
         scene = document.scene if document is not None else None
         if scene is None:
             self._summary(layout, document)
@@ -207,6 +213,7 @@ class GeometryPanel(QWidget):
 
     def _form_row(self, form: QVBoxLayout, text: str, widget: QWidget, key: str) -> None:
         row = QWidget()
+        self._row_widgets[key] = row
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.addWidget(label(text, "key"))
@@ -329,8 +336,20 @@ class GeometryPanel(QWidget):
         self._form_row(form, "second region", _combo(regions, second), "second")
         shape_box = self._widgets["shape"]
         shape_box.currentTextChanged.connect(lambda text: self._refresh_sides(scene, text))
+        kind_box.currentTextChanged.connect(lambda _text: self._show_curve_fields())
+        self._show_curve_fields()
         self._buttons(form)
         self._rows = [("boundary", boundary.name)]
+
+    def _curve_kind(self) -> str:
+        chosen = self._widgets["curve_kind"].currentText()
+        return next(k for k, title in CURVE_KINDS.items() if title == chosen)
+
+    def _show_curve_fields(self) -> None:
+        """Show only the fields the chosen kind of curve uses."""
+        shown = CURVE_FIELDS[self._curve_kind()]
+        for key in ("shape", "side", "first", "second"):
+            self._row_widgets[key].setVisible(key in shown)
 
     def _refresh_sides(self, scene, shape_name: str) -> None:
         box = self._widgets["side"]
@@ -431,11 +450,7 @@ class GeometryPanel(QWidget):
         return operands
 
     def _curve(self):
-        kind = next(
-            k
-            for k, title in CURVE_KINDS.items()
-            if title == self._widgets["curve_kind"].currentText()
-        )
+        kind = self._curve_kind()
         shape, side = self._widgets["shape"].currentText(), self._widgets["side"].currentText()
         if kind == "between":
             return Between(

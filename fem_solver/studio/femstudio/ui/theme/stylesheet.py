@@ -1,4 +1,5 @@
 from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtWidgets import QWidget
 
 from femstudio.ui.theme import tokens as t
 from femstudio.ui.theme import zoom
@@ -115,3 +116,14 @@ QToolButton#add_operand {{ border: {rule}; border-radius: {px(3)}; padding: {px(
   background: {t.SURFACE}; }}
 QSplitter::handle {{ background: {t.RULE}; }}
 """
+
+
+def apply(window: QWidget, factor: float) -> None:
+    """Set fonts and stylesheet for `factor`; widgets that size things in code refresh."""
+    sans, mono = resolve_fonts(factor)
+    window.setFont(sans)
+    window.setStyleSheet(build_stylesheet(sans.family(), mono.family(), factor))
+    for widget in window.findChildren(QWidget):
+        hook = getattr(widget, "apply_zoom", None)
+        if callable(hook):
+            hook()
