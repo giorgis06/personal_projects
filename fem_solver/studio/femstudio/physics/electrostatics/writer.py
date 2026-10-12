@@ -2,13 +2,11 @@ import json
 from pathlib import Path
 
 from femstudio.core.mesh.mesh_data import MeshData
+from femstudio.core.project.run import MESH_FILE, PROBLEM_FILE, RESULT_DIR
 from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, BoundaryCondition
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.validation import validate
 from femstudio.physics.base import (
-    MESH_FILE,
-    PROBLEM_FILE,
-    RESULT_DIR,
     FieldSpec,
     ProblemError,
     ProblemType,

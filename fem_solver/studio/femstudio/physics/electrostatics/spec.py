@@ -1,8 +1,11 @@
+import math
 from pathlib import Path
 
 from femstudio.core.expressions.evaluate import constant_value
 from femstudio.core.expressions.grammar import ExpressionError
 from femstudio.core.mesh.mesh_data import MeshData
+from femstudio.core.results import derived
+from femstudio.core.results.field import Field
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.validation import Finding
 from femstudio.physics.base import (
@@ -12,7 +15,7 @@ from femstudio.physics.base import (
     ProblemType,
     SolverSettings,
 )
-from femstudio.physics.electrostatics.writer import write_problem
+from femstudio.physics.electrostatics.writer import EPSILON_0, write_problem
 
 EPSILON = FieldSpec("epsilon", "Relative permittivity", "tensor", ((1.0, 0.0), (0.0, 1.0)))
 RHO = FieldSpec("rho", "Charge density", "expression", "0", unit="C/m^3")
@@ -48,6 +51,24 @@ class Electrostatics(ProblemType):
                 findings += _check_kappa(subject, condition.values.get("kappa"))
         return findings
 
+    def derive(self, scene: Scene, mesh: MeshData, solution: Field) -> dict[str, Field]:
+        """E = -grad u, |E| and the energy density epsilon_0 epsilon_r |E|^2 / 2, per triangle."""
+        gradient = derived.gradient(mesh, solution.values)
+        permittivity = derived.tensor_per_triangle(
+            mesh, {region.name: region.material["epsilon"] for region in scene.regions}
+        )
+        field = -gradient
+        return {
+            "E": Field("E", field, "V/m", "triangle"),
+            "E_magnitude": Field("E_magnitude", derived.magnitude(field), "V/m", "triangle"),
+            "energy_density": Field(
+                "energy_density",
+                derived.energy_density(gradient, permittivity, EPSILON_0),
+                "J/m^3",
+                "triangle",
+            ),
+        }
+
     def write_problem(
         self,
         scene: Scene,
@@ -65,6 +86,6 @@ def _check_kappa(subject: str, text) -> list[Finding]:
         value = constant_value(text)
     except ExpressionError:
         return []
-    if value is not None and not value > 0:
-        return [Finding("error", "boundary-fields", subject, "kappa must be positive")]
+    if value is not None and not (math.isfinite(value) and value > 0):
+        return [Finding("error", "boundary-fields", subject, "kappa must be finite and positive")]
     return []

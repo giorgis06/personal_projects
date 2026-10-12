@@ -5,12 +5,9 @@ from pathlib import Path
 from typing import Literal
 
 from femstudio.core.mesh.mesh_data import MeshData
+from femstudio.core.results.field import Field
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.validation import Finding
-
-PROBLEM_FILE = "problem.json"
-MESH_FILE = "mesh.msh"
-RESULT_DIR = "result"
 
 FieldKind = Literal["number", "tensor", "expression"]
 
@@ -122,6 +119,10 @@ class ProblemType(ABC):
             message = f"kind '{condition.kind}' is not one of: {allowed}"
             return [_error("boundary-kind", subject, message)]
         return _check_values(subject, condition.values, kind.fields, "boundary-fields")
+
+    def derive(self, scene: Scene, mesh: MeshData, solution: Field) -> dict[str, Field]:
+        """The derived output fields, by name; none unless a problem type defines some."""
+        return {}
 
     @abstractmethod
     def write_problem(
