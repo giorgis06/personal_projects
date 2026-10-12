@@ -129,12 +129,12 @@ The package is named `femstudio` and the folder `studio`; rename both together i
 - `boundary_kinds`: the allowed kinds and the fields each needs (dirichlet: `g`; neumann: `g`; robin: `g`, `kappa`)
 - `source_fields` (electrostatics: `rho`)
 - `output_fields`: what the solver returns and what can be derived from it
-- `validate(scene)` and `write_problem(scene, mesh, folder)`
+- `validate(scene)`, `write_problem(scene, mesh, folder)` and `derive(scene, mesh, solution)`, which returns the derived output fields by name (the unit constants stay in the problem type's folder)
 
 **SolverBackend** (`backends/base.py`):
 
-- `name`, `supported_problem_types`
-- `is_available()`: for the executable backend, whether the binary exists and accepts the contract
+- `name`, `supported_problem_types` (`*` means any; the solver itself refuses what it lacks)
+- `is_available()`: for the executable backend, whether the file exists and can be run (the contract has no probe to ask more)
 - `solve(run_folder, on_log)`: blocks, streams log lines, returns status; raises a typed error carrying the solver's message on failure
 
 The panels are generated from the ProblemType. Nothing in `ui/` names a material property or a boundary kind literally.
@@ -309,8 +309,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
-| M3 | in review | Problem types are discovered by folder. `validate` is spec-driven in the base class. A boundary with no condition is written as insulating; a `between` boundary with no condition is omitted. Units and epsilon_0 scaling per owner decision on #19 (see Units). |
-| M4 | not started | |
+| M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
+| M4 | in review | Run folder is `<project>/runs/run_NNN/{problem.json, mesh.msh, result/, log.txt, status.json}`. `Run.execute` takes the problem type and backend as arguments so `core/` imports neither. `ProblemType.derive` is new. The real-solver test runs only when `FEM_EXECUTABLE` is set. |
 | M5 | not started | |
 | M6 | not started | |
 | M7 | not started | |
