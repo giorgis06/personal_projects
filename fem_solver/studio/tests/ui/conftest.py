@@ -64,3 +64,14 @@ def settings(tmp_path):
     from PySide6.QtCore import QSettings
 
     return QSettings(str(tmp_path / "femstudio.ini"), QSettings.Format.IniFormat)
+
+
+@pytest.fixture(autouse=True)
+def _unsaved_changes_answer(monkeypatch):
+    """A window closed with unsaved edits would block on a dialog; tests answer it themselves.
+
+    The default is "discard"; a test that checks the question replaces `ask_unsaved`.
+    """
+    from femstudio.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")

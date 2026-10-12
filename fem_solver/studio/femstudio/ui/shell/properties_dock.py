@@ -7,6 +7,7 @@ from femstudio.ui.panels.mesh import MeshPanel
 from femstudio.ui.panels.physics import PhysicsPanel
 from femstudio.ui.panels.results import ResultsPanel
 from femstudio.ui.panels.solve import SolvePanel
+from femstudio.ui.session import Session
 from femstudio.ui.theme import tokens as t
 from femstudio.ui.theme import zoom
 from femstudio.ui.widgets.dock_title import DockTitle
@@ -15,12 +16,12 @@ from femstudio.ui.widgets.dock_title import DockTitle
 class PropertiesDock(QDockWidget):
     """Hosts the panel of the current step, showing what is selected in the scene."""
 
-    def __init__(self) -> None:
+    def __init__(self, session: Session) -> None:
         super().__init__("Properties")
         self.setObjectName("propertiesDock")
         self.setTitleBarWidget(DockTitle("Properties", self))
         self._panels = {
-            "Geometry": GeometryPanel(),
+            "Geometry": GeometryPanel(session),
             "Physics": PhysicsPanel(),
             "Mesh": MeshPanel(),
             "Solve": SolvePanel(),
@@ -37,7 +38,7 @@ class PropertiesDock(QDockWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setWidget(body)
         self.setWidget(scroll)
         self.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
@@ -58,9 +59,10 @@ class PropertiesDock(QDockWidget):
     def show_step(self, step: str) -> None:
         self._stack.setCurrentWidget(self._panels[step])
 
-    def set_document(self, document: Document | None) -> None:
+    def set_document(self, document: Document | None, keep_selection: bool = False) -> None:
         self._document = document
-        self._selection = ("", "")
+        if not keep_selection:
+            self._selection = ("", "")
         self._refresh()
 
     def set_selection(self, kind: str, name: str) -> None:

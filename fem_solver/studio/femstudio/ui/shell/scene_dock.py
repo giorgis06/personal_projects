@@ -133,12 +133,31 @@ class SceneDock(QDockWidget):
             item.setIcon(0, _swatch(colour))
         self._groups[kind].addChild(item)
 
-    def set_document(self, document: Document | None, problem_type: ProblemType | None) -> None:
+    def selected(self) -> tuple[str, str]:
+        item = self._tree.currentItem()
+        if item is None or item.data(0, KIND_ROLE) is None:
+            return ("", "")
+        return (item.data(0, KIND_ROLE), item.data(0, NAME_ROLE))
+
+    def set_document(
+        self,
+        document: Document | None,
+        problem_type: ProblemType | None,
+        keep_selection: bool = False,
+    ) -> None:
+        """Rebuild the tree; `keep_selection` re-selects the selected row if it is still there."""
+        previous = self.selected() if keep_selection else ("", "")
         self._tree.blockSignals(True)
         self._build_groups()
         if document is not None:
             self._fill(document, problem_type)
         self._tree.blockSignals(False)
+        if previous[0]:
+            try:
+                self.select(*previous)
+                return
+            except KeyError:
+                pass
         self.selectionChanged.emit("", "")
 
     def _fill(self, document: Document, problem_type: ProblemType | None) -> None:

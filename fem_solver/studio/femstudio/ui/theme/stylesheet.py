@@ -1,4 +1,5 @@
 from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtWidgets import QWidget
 
 from femstudio.ui.theme import tokens as t
 from femstudio.ui.theme import zoom
@@ -106,5 +107,23 @@ QPushButton#validation[level="error"] {{ color: {t.ERROR}; }}
 QDialog QListWidget {{ background: {t.SURFACE}; border: {rule}; }}
 QPushButton {{ border: {rule}; border-radius: {px(t.RADIUS)};
   padding: {px(4)} {px(12)}; background: {t.SURFACE}; }}
+QLineEdit, QDoubleSpinBox, QComboBox, QPlainTextEdit {{ border: {rule};
+  border-radius: {px(3)}; padding: {px(3)} {px(6)}; background: {t.SURFACE};
+  font-family: "{mono}"; selection-background-color: {t.SELECTION}; selection-color: {t.INK}; }}
+QLineEdit:focus, QDoubleSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus {{
+  border: {t.RULE_WIDTH}px solid {t.ACCENT}; }}
+QToolButton#add_operand {{ border: {rule}; border-radius: {px(3)}; padding: {px(2)} {px(8)};
+  background: {t.SURFACE}; }}
 QSplitter::handle {{ background: {t.RULE}; }}
 """
+
+
+def apply(window: QWidget, factor: float) -> None:
+    """Set fonts and stylesheet for `factor`; widgets that size things in code refresh."""
+    sans, mono = resolve_fonts(factor)
+    window.setFont(sans)
+    window.setStyleSheet(build_stylesheet(sans.family(), mono.family(), factor))
+    for widget in window.findChildren(QWidget):
+        hook = getattr(widget, "apply_zoom", None)
+        if callable(hook):
+            hook()

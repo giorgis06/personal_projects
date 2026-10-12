@@ -86,6 +86,7 @@ class GeometryView(QWidget):
         self._document: Document | None = None
         self._selected: tuple[str, str] = ("", "")
         self._actors: dict[tuple[str, str], object] = {}
+        self._drawn = False
         self._plotter = None
         try:
             from pyvistaqt import QtInteractor
@@ -116,9 +117,15 @@ class GeometryView(QWidget):
     def highlighted(self) -> tuple[str, str]:
         return self._selected
 
-    def set_document(self, document: Document | None) -> None:
+    def set_document(self, document: Document | None, reset_view: bool = True) -> None:
+        """Redraw. After an edit (`reset_view` False) the camera and the highlight stay."""
+        keep = not reset_view and self._plotter is not None and self._drawn
+        camera = None
+        if keep:
+            camera = (self._plotter.camera_position, self._plotter.camera.parallel_scale)
+        else:
+            self._selected = ("", "")
         self._document = document
-        self._selected = ("", "")
         self._actors = {}
         unmeshed = document is not None and document.mesh is None
         self._note.setText(f"Not meshed: {document.mesh_error}" if unmeshed else "")
@@ -131,7 +138,12 @@ class GeometryView(QWidget):
         self._plotter.view_xy()
         self._plotter.enable_parallel_projection()
         self._plotter.enable_image_style()
-        self._plotter.reset_camera()
+        if camera is None:
+            self._plotter.reset_camera()
+        else:
+            self._plotter.camera_position = camera[0]
+            self._plotter.camera.parallel_scale = camera[1]
+        self._drawn = document is not None and bool(self._actors)
         self._plotter.render()
 
     def _add(self, key: tuple[str, str], poly: pv.PolyData, **options) -> None:
@@ -224,5 +236,8 @@ class GeometryView(QWidget):
         return Style(colour, round(prop.GetOpacity(), 6), prop.GetLineWidth())
 
     def close_plotter(self) -> None:
-        if self._plotter is not None:
-            self._plotter.close()
+        """Stop and release the 3D widget; a second call, or a late render, does nothing."""
+        plotter, self._plotter = self._plotter, None
+        self._actors = {}
+        if plotter is not None:
+            plotter.close()

@@ -10,11 +10,19 @@ pytestmark = pytest.mark.ui
 
 @pytest.fixture
 def window(qtbot, settings):
+    """A shown window, closed here rather than by qtbot.
+
+    qtbot closes its widgets before fixtures are torn down, when a test may still have the
+    unsaved-changes answer patched to "cancel": the window would then stay open and its 3D
+    widget would outlive its GL context, aborting the process a few tests later.
+    """
     window = MainWindow(settings)
-    qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
-    return window
+    yield window
+    window.session._set_dirty(False)
+    window.close()
+    window.deleteLater()
 
 
 @pytest.fixture
@@ -80,7 +88,11 @@ def test_selecting_a_scene_row_highlights_that_part_in_the_viewport(opened):
 
 def test_selecting_a_row_shows_its_fields_in_the_properties_dock(opened):
     opened.scene_dock.select("region", "glass")
-    assert opened.properties.panel("Geometry").rows() == [("area", "(glass_outer - electrode)")]
+    geometry = opened.properties.panel("Geometry")
+    assert geometry.field("name").text() == "glass"
+    assert geometry.field("shape_0").currentText() == "glass_outer"
+    assert geometry.field("operation_1").currentText() == "difference"
+    assert geometry.field("shape_1").currentText() == "electrode"
     assert opened.properties.panel("Physics").rows() == [("epsilon", "4")]
     opened.scene_dock.select("boundary", "inner_electrode")
     assert opened.properties.panel("Physics").rows() == [("kind", "Fixed potential"), ("g", "5 V")]
@@ -376,7 +388,7 @@ def test_zoomed_widgets_created_later_are_sized_at_the_current_zoom(window, qtbo
     window.set_zoom(1.5)
     assert window.open_path(EXAMPLE)
     window.scene_dock.select("region", "glass")
-    grid = window.properties.panel("Geometry")._grid
+    grid = window.properties.panel("Mesh")._grid
     assert grid._layout.verticalSpacing() == round(t.GAP * 1.5)
 
 
@@ -385,3 +397,140 @@ def test_a_stored_nan_does_not_stop_the_window_opening(qtbot, settings):
     window = MainWindow(settings)
     qtbot.addWidget(window)
     assert window.status.zoom_text() == "Zoom 100 %"
+
+
+@pytest.fixture
+def dirty(opened, tmp_path):
+    """The capacitor opened from a copy, with one unsaved edit."""
+    import shutil
+
+    copy = tmp_path / "mine.scene.json"
+    shutil.copy(EXAMPLE, copy)
+    assert opened.open_path(copy)
+    opened.properties.panel("Geometry").add_item("circle")
+    assert opened.session.dirty
+    return opened
+
+
+def answer(monkeypatch, choice):
+    asked = []
+    monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: asked.append(1) or choice)
+    return asked
+
+
+@pytest.mark.parametrize("action", ["open", "new", "close"])
+def test_cancel_keeps_unsaved_edits_whatever_asked_to_replace_them(dirty, monkeypatch, action):
+    asked = answer(monkeypatch, "cancel")
+    before = dirty.session.scene
+    result = {
+        "open": lambda: dirty.open_path(DATA / "square.geo"),
+        "new": dirty.new_scene,
+        "close": dirty.close,
+    }[action]()
+    assert result is False and asked == [1]
+    assert dirty.session.scene is before and dirty.session.dirty
+
+
+@pytest.mark.parametrize("action", ["open", "new"])
+def test_discard_replaces_the_scene(dirty, monkeypatch, action):
+    answer(monkeypatch, "discard")
+    ok = dirty.open_path(DATA / "square.geo") if action == "open" else dirty.new_scene()
+    assert ok is True
+    assert not dirty.session.dirty
+    assert dirty.session.scene is None or dirty.session.scene.shapes == []
+
+
+def test_save_writes_the_scene_and_then_opens_the_other_file(dirty, monkeypatch):
+    answer(monkeypatch, "save")
+    target = dirty.document.source
+    assert dirty.open_path(DATA / "square.geo")
+    from femstudio.core.scene.serialization import load_scene
+
+    assert "circle" in [s.name for s in load_scene(target).shapes]
+
+
+def test_a_clean_scene_is_replaced_without_asking(opened, monkeypatch):
+    asked = answer(monkeypatch, "cancel")
+    assert opened.open_path(DATA / "square.geo")
+    assert asked == []
+
+
+def test_closing_a_clean_window_does_not_ask(window, monkeypatch):
+    asked = answer(monkeypatch, "cancel")
+    assert window.close()
+    assert asked == []
+
+
+def test_the_question_names_the_file(opened, monkeypatch):
+    opened.properties.panel("Geometry").add_item("circle")
+    import femstudio.ui.main_window as module
+
+    captured = {}
+
+    class Box:
+        class StandardButton:
+            Save, Discard, Cancel = 1, 2, 4
+
+        def __init__(self, parent):
+            pass
+
+        def setWindowTitle(self, text):
+            captured["title"] = text
+
+        def setText(self, text):
+            captured["text"] = text
+
+        def setStandardButtons(self, buttons):
+            pass
+
+        def setDefaultButton(self, button):
+            pass
+
+        def exec(self):
+            return Box.StandardButton.Discard
+
+    monkeypatch.undo()  # the autouse answer would hide the dialog code
+    monkeypatch.setattr(module, "QMessageBox", Box)
+    assert opened.ask_unsaved() == "discard"
+    assert captured["title"] == "Unsaved changes"
+    assert "capacitor.scene.json" in captured["text"]
+    opened.session._set_dirty(False)
+
+
+def test_closing_the_views_twice_is_harmless_and_final(window):
+    window.open_path(EXAMPLE)
+    views = (window.viewport.geometry_view, window.viewport.mesh_view)
+    assert all(view.can_draw for view in views)
+    window.viewport.close_views()
+    window.viewport.close_views()
+    assert not any(view.can_draw for view in views)
+    window.viewport.set_document(window.document)  # a late redraw must not touch a closed plotter
+    window.viewport.highlight("region", "glass")
+
+
+def test_a_cancelled_close_leaves_the_window_drawing(dirty, monkeypatch):
+    answer(monkeypatch, "cancel")
+    assert dirty.close() is False
+    assert dirty.isVisible()
+    assert dirty.viewport.geometry_view.can_draw and dirty.viewport.mesh_view.can_draw
+
+
+def test_closing_after_discarding_closes_the_views(dirty, monkeypatch):
+    answer(monkeypatch, "discard")
+    assert dirty.close() is True
+    assert not dirty.viewport.geometry_view.can_draw
+
+
+@pytest.mark.parametrize(
+    ("kind", "name"),
+    [("shape", "wall"), ("region", "glass"), ("boundary", "inner_electrode"), ("", "")],
+)
+def test_the_geometry_panels_least_width_fits_the_dock_with_room_to_spare(opened, kind, name):
+    from PySide6.QtWidgets import QApplication
+
+    if kind:
+        opened.scene_dock.select(kind, name)
+    for _ in range(4):
+        QApplication.processEvents()
+    panel = opened.properties.panel("Geometry")
+    assert panel.minimumSizeHint().width() <= t.PROPERTIES_DOCK_WIDTH - 20

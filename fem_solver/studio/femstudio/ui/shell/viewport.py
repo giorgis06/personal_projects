@@ -50,9 +50,9 @@ class Viewport(QTabWidget):
     def current_title(self) -> str:
         return self.tabText(self.currentIndex())
 
-    def set_document(self, document: Document | None) -> None:
-        self.geometry_view.set_document(document)
-        self.mesh_view.set_document(document)
+    def set_document(self, document: Document | None, reset_view: bool = True) -> None:
+        self.geometry_view.set_document(document, reset_view)
+        self.mesh_view.set_document(document, reset_view)
 
     def highlight(self, kind: str, name: str) -> None:
         self.geometry_view.highlight(kind, name)
