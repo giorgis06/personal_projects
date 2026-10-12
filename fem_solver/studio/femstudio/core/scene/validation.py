@@ -5,6 +5,7 @@ from typing import Literal
 import numpy as np
 
 from femstudio.core.expressions.grammar import ExpressionError, parse
+from femstudio.core.scene.boundary import Between, Boundary, Outline
 from femstudio.core.scene.operations import leaves
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
@@ -66,12 +67,29 @@ def _references(scene: Scene) -> list[Finding]:
                 name = getattr(leaf, "name", "?")
                 message = f"uses shape '{name}', which is not in the scene"
                 findings.append(_error("references", f"region '{region.name}'", message))
-    known = {shape.name for shape in scene.shapes}
     for boundary in scene.boundaries:
-        if boundary.shape not in known:
-            message = f"refers to unknown shape '{boundary.shape}'"
-            findings.append(_error("references", f"boundary '{boundary.name}'", message))
+        problem = _curve_problem(scene, boundary)
+        if problem:
+            findings.append(_error("references", f"boundary '{boundary.name}'", problem))
     return findings
+
+
+def _curve_problem(scene: Scene, boundary: Boundary) -> str | None:
+    curve = boundary.curve
+    if isinstance(curve, Between):
+        regions = {region.name for region in scene.regions}
+        for name in (curve.first, curve.second):
+            if name not in regions:
+                return f"refers to unknown region '{name}'"
+        if curve.first == curve.second:
+            return "needs two different regions"
+        return None
+    shapes = {shape.name: shape for shape in scene.shapes}
+    if curve.shape not in shapes:
+        return f"refers to unknown shape '{curve.shape}'"
+    if not isinstance(curve, Outline) and curve.side not in shapes[curve.shape].sides:
+        return f"shape '{curve.shape}' has no side '{curve.side}'"
+    return None
 
 
 def _expressions(scene: Scene) -> list[Finding]:
@@ -128,7 +146,7 @@ def _boundary_defaults(scene: Scene) -> list[Finding]:
             "has no condition, so it is insulating (neumann, g = 0)",
         )
         for boundary in scene.boundaries
-        if boundary.condition is None
+        if boundary.condition is None and not isinstance(boundary.curve, Between)
     ]
 
 

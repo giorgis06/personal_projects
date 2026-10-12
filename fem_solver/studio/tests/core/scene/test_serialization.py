@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from femstudio.core.scene.boundary import Boundary, BoundaryCondition
+from femstudio.core.scene.boundary import Between, Boundary, BoundaryCondition, Outline, Side
 from femstudio.core.scene.region import Region
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import (
@@ -26,8 +26,12 @@ def rich_scene() -> Scene:
             Region("b", disk & slab, {"epsilon": 3.0}),
         ],
         boundaries=[
-            Boundary("edge", "disk", BoundaryCondition("robin", {"g": "1", "kappa": "x+2"})),
-            Boundary("free", "tri"),
+            Boundary(
+                "edge", Outline("disk"), BoundaryCondition("robin", {"g": "1", "kappa": "x+2"})
+            ),
+            Boundary("left_side", Side("slab", "left"), BoundaryCondition("dirichlet", {"g": "0"})),
+            Boundary("interface", Between("a", "b")),
+            Boundary("free", Outline("tri")),
         ],
         source={"rho": "exp(-r^2)"},
     )
@@ -51,7 +55,7 @@ def test_written_form_matches_a_hand_written_file():
         problem_type="electrostatics",
         shapes=[disk],
         regions=[Region("air", disk, {"epsilon": eps})],
-        boundaries=[Boundary("rim", "disk", BoundaryCondition("dirichlet", {"g": "0"}))],
+        boundaries=[Boundary("rim", Outline("disk"), BoundaryCondition("dirichlet", {"g": "0"}))],
         source={"rho": "0"},
     )
     assert scene_to_dict(scene) == {
@@ -68,6 +72,16 @@ def test_written_form_matches_a_hand_written_file():
     }
 
 
+def test_each_curve_selector_has_its_own_written_form():
+    boundaries = scene_to_dict(rich_scene())["boundaries"]
+    assert [{k: v for k, v in b.items() if k not in ("name", "condition")} for b in boundaries] == [
+        {"shape": "disk"},
+        {"shape": "slab", "side": "left"},
+        {"between": ["a", "b"]},
+        {"shape": "tri"},
+    ]
+
+
 def _keys(value):
     if isinstance(value, dict):
         for key, inner in value.items():
@@ -81,8 +95,10 @@ def _keys(value):
 def test_no_tag_numbers_in_a_saved_scene():
     data = scene_to_dict(rich_scene())
     assert not [key for key in _keys(data) if "tag" in key]
-    references = [b["shape"] for b in data["boundaries"]]
-    assert all(isinstance(ref, str) and not ref.isdigit() for ref in references)
+    references = [b.get("shape") for b in data["boundaries"]] + [
+        name for b in data["boundaries"] for name in b.get("between", [])
+    ]
+    assert all(ref is None or not ref.isdigit() for ref in references)
 
 
 def _good() -> dict:

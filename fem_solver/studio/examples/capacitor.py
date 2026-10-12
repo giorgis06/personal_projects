@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from femstudio.core.scene.boundary import Boundary, BoundaryCondition
+from femstudio.core.scene.boundary import Boundary, BoundaryCondition, Outline
 from femstudio.core.scene.region import Region
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import save_scene
@@ -25,8 +25,10 @@ def capacitor_scene() -> Scene:
             Region("air", wall - glass_outer, {"epsilon": ((1.0, 0.0), (0.0, 1.0))}),
         ],
         boundaries=[
-            Boundary("inner_electrode", "electrode", BoundaryCondition("dirichlet", {"g": "5"})),
-            Boundary("outer_wall", "wall", BoundaryCondition("dirichlet", {"g": "0"})),
+            Boundary(
+                "inner_electrode", Outline("electrode"), BoundaryCondition("dirichlet", {"g": "5"})
+            ),
+            Boundary("outer_wall", Outline("wall"), BoundaryCondition("dirichlet", {"g": "0"})),
         ],
         source={"rho": "0"},
     )

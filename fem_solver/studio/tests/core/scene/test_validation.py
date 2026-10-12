@@ -1,6 +1,6 @@
 import pytest
 from examples.capacitor import capacitor_scene
-from femstudio.core.scene.boundary import Boundary, BoundaryCondition
+from femstudio.core.scene.boundary import Between, Boundary, BoundaryCondition, Outline, Side
 from femstudio.core.scene.region import Region
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
 from femstudio.core.scene.validation import validate
@@ -72,8 +72,75 @@ def test_region_using_a_shape_not_in_the_scene():
 
 def test_boundary_on_an_unknown_shape():
     scene = capacitor_scene()
-    scene.boundaries.append(Boundary("b", "ghost", BoundaryCondition("dirichlet", {"g": "0"})))
+    scene.boundaries.append(
+        Boundary("b", Outline("ghost"), BoundaryCondition("dirichlet", {"g": "0"}))
+    )
     assert ("error", "references", "boundary 'b'") in found(scene)
+
+
+def _with_square(scene):
+    scene.shapes.append(Rectangle("sq", (0.0, 0.0), 1.0, 1.0))
+    return scene
+
+
+def test_side_of_a_shape_that_has_it_passes():
+    scene = _with_square(capacitor_scene())
+    scene.boundaries.append(
+        Boundary("b", Side("sq", "left"), BoundaryCondition("neumann", {"g": "0"}))
+    )
+    assert "references" not in rules(scene)
+
+
+@pytest.mark.parametrize("shape, side", [("sq", "front"), ("wall", "left"), ("ghost", "left")])
+def test_side_that_the_shape_does_not_have(shape, side):
+    scene = _with_square(capacitor_scene())
+    scene.boundaries.append(
+        Boundary("b", Side(shape, side), BoundaryCondition("neumann", {"g": "0"}))
+    )
+    assert ("error", "references", "boundary 'b'") in found(scene)
+
+
+def test_polygon_sides_are_numbered_from_one():
+    scene = capacitor_scene()
+    scene.shapes.append(Polygon("tri", ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0))))
+    for side, ok in [("edge_1", True), ("edge_3", True), ("edge_4", False), ("edge_0", False)]:
+        scene.boundaries = [
+            Boundary("b", Side("tri", side), BoundaryCondition("neumann", {"g": "0"}))
+        ]
+        assert ("references" not in rules(scene)) == ok, side
+
+
+def test_between_two_known_regions_passes():
+    scene = capacitor_scene()
+    scene.boundaries.append(Boundary("interface", Between("glass", "air")))
+    assert "references" not in rules(scene)
+
+
+def test_between_an_unknown_region():
+    scene = capacitor_scene()
+    scene.boundaries.append(Boundary("interface", Between("glass", "vacuum")))
+    assert ("error", "references", "boundary 'interface'") in found(scene)
+
+
+def test_between_a_region_and_itself():
+    scene = capacitor_scene()
+    scene.boundaries.append(Boundary("interface", Between("glass", "glass")))
+    assert ("error", "references", "boundary 'interface'") in found(scene)
+
+
+def test_between_without_a_condition_is_continuity_not_a_warning():
+    scene = capacitor_scene()
+    scene.boundaries.append(Boundary("interface", Between("glass", "air")))
+    assert "boundary-default" not in rules(scene)
+
+
+def test_outline_and_side_without_a_condition_warn():
+    scene = _with_square(capacitor_scene())
+    scene.boundaries += [Boundary("o", Outline("sq")), Boundary("s", Side("sq", "top"))]
+    assert {
+        ("warning", "boundary-default", "boundary 'o'"),
+        ("warning", "boundary-default", "boundary 's'"),
+    } <= found(scene)
 
 
 def test_bad_expression_in_a_boundary():
