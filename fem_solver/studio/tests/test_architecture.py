@@ -43,3 +43,42 @@ def test_no_qt_or_pyvista_outside_ui():
         if (found := forbidden_imports(p.read_text()))
     }
     assert offenders == {}
+
+
+def _string_constants(path: Path) -> set[str]:
+    return {
+        node.value
+        for node in ast.walk(ast.parse(path.read_text()))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+
+def test_problem_type_names_appear_only_in_their_own_package():
+    from femstudio.physics import registry
+
+    names = {p.name for p in registry.available()}
+    offenders = {}
+    for path in PACKAGE.rglob("*.py"):
+        parts = path.relative_to(PACKAGE).parts
+        if parts[:2] in {("physics", p) for p in names}:
+            continue
+        found = _string_constants(path) & names
+        if found:
+            offenders[str(path.relative_to(PACKAGE))] = sorted(found)
+    assert offenders == {}
+
+
+def test_ui_does_not_spell_out_field_or_boundary_kind_names():
+    from femstudio.physics import registry
+
+    spelled = set()
+    for problem in registry.available():
+        spelled |= {f.name for f in problem.material_fields + problem.source_fields}
+        spelled |= {k.name for k in problem.boundary_kinds}
+        spelled |= {f.name for k in problem.boundary_kinds for f in k.fields}
+    offenders = {}
+    for path in (PACKAGE / "ui").rglob("*.py"):
+        found = _string_constants(path) & spelled
+        if found:
+            offenders[str(path.relative_to(PACKAGE))] = sorted(found)
+    assert offenders == {}

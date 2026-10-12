@@ -293,8 +293,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 |---|---|---|
 | M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
-| M2 | in review | `between` boundaries never warn about a missing condition; outline and side do. `mesh_scene` returns the MeshData read back from the file it wrote. gmsh log lines reach `on_log` after each stage, not live. Review fixes: unnamed outer edges refused unless `default_boundary` is set. |
-| M3 | not started | |
+| M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
+| M3 | in review | Problem types are discovered by folder: any sub-package of `physics/` that registers itself. `validate` is spec-driven in the base class. A boundary with no condition is written as insulating; a `between` boundary with no condition is omitted. `default_boundary` is written only when the mesh has that group. |
 | M4 | not started | |
 | M5 | not started | |
 | M6 | not started | |
