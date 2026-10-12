@@ -147,3 +147,39 @@ def test_findings_dialog_says_when_there_is_nothing(qtbot):
     dialog = FindingsDialog([])
     qtbot.addWidget(dialog)
     assert dialog.lines() == ["No findings."]
+
+
+@pytest.mark.ui
+def test_choosing_a_step_from_code_announces_it(qtbot):
+    bar = WorkflowBar()
+    qtbot.addWidget(bar)
+    with qtbot.waitSignal(bar.stepChanged) as signal:
+        bar.set_step("Physics")
+    assert signal.args == ["Physics"]
+    assert bar.step() == "Physics"
+
+
+def test_a_scene_that_cannot_be_meshed_reports_the_reason_as_a_finding(document):
+    document.mesh = None
+    document.mesh_error = "3 outer curve(s) are named by no boundary"
+    findings = collect_findings(document)
+    assert [(f.severity, f.rule) for f in findings] == [("error", "mesh")]
+    assert "named by no boundary" in findings[0].message
+
+
+def test_a_meshing_error_already_explained_by_validation_is_not_repeated(document):
+    document.scene.regions[1].material = {}
+    document.mesh = None
+    document.mesh_error = "region 'air': has no material"
+    rules = [f.rule for f in collect_findings(document)]
+    assert "mesh" not in rules and "region-material" in rules
+
+
+@pytest.mark.ui
+def test_status_bar_without_a_mesh(qtbot, document):
+    document.mesh = None
+    document.mesh_error = "the scene has no shapes to mesh"
+    status = StatusPanel()
+    qtbot.addWidget(status)
+    status.set_document(document)
+    assert status.texts() == ["Validation: 1 error, 0 warnings", "", "", "not meshed"]

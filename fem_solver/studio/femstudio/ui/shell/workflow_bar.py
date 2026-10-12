@@ -59,7 +59,9 @@ class WorkflowBar(QWidget):
         return next(name for name, button in self._buttons.items() if button.isChecked())
 
     def set_step(self, step: str) -> None:
+        """Choose a step as a click would, so the panel and viewport follow."""
         self._buttons[step].setChecked(True)
+        self.stepChanged.emit(step)
 
     def set_backends(self, names: list[str]) -> None:
         self._backend.clear()

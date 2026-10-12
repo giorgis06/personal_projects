@@ -2,14 +2,12 @@ from pathlib import Path
 
 import pytest
 from examples.capacitor import capacitor_scene
-from femstudio.core.mesh.mesher import MeshError
 from femstudio.core.project.document import (
     DocumentError,
     default_mesh_size,
     open_document,
 )
 from femstudio.core.project.project import Project, ProjectError
-from femstudio.core.scene.region import Region
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import SceneFileError, save_scene
 
@@ -74,19 +72,66 @@ def test_broken_scene_file(tmp_path):
         open_document(path, tmp_path)
 
 
-def test_scene_that_cannot_be_meshed_raises_the_mesh_error(tmp_path):
-    scene = Scene("electrostatics")
+def test_an_empty_scene_opens_without_a_mesh(tmp_path):
     path = tmp_path / "empty.json"
-    save_scene(scene, path)
-    with pytest.raises(DocumentError, match="no shapes"):
-        open_document(path, tmp_path)
+    save_scene(Scene("electrostatics"), path)
+    document = open_document(path, tmp_path)
+    assert document.mesh is None
+    assert "no shapes" in document.mesh_error
+    assert document.scene == Scene("electrostatics")
+    assert document.region_names == [] and document.boundary_names == []
 
 
-def test_scene_with_unnamed_outer_edges_is_refused(tmp_path):
+def test_a_scene_with_unnamed_outer_edges_opens_and_says_why_it_has_no_mesh(tmp_path):
     scene = capacitor_scene()
     scene.boundaries.pop()
-    scene.regions[1] = Region("air", scene.regions[1].area, {"epsilon": 1.0})
     path = tmp_path / "scene.json"
     save_scene(scene, path)
-    with pytest.raises(MeshError, match="named by no boundary"):
-        open_document(path, tmp_path)
+    document = open_document(path, tmp_path)
+    assert document.mesh is None
+    assert "named by no boundary" in document.mesh_error
+    assert document.region_names == ["glass", "air"]
+    assert document.boundary_names == ["inner_electrode"]
+
+
+def test_a_region_without_a_material_opens_with_the_validation_reason(tmp_path):
+    scene = capacitor_scene()
+    scene.regions[1].material = {}
+    path = tmp_path / "scene.json"
+    save_scene(scene, path)
+    document = open_document(path, tmp_path)
+    assert document.mesh is None
+    assert "region 'air'" in document.mesh_error and "no material" in document.mesh_error
+
+
+def test_a_project_without_a_mesh_still_has_its_runs(tmp_path):
+    scene = capacitor_scene()
+    scene.regions[1].material = {}
+    project = Project.create(tmp_path / "proj", scene)
+    project.new_run()
+    document = open_document(tmp_path / "proj", tmp_path)
+    assert document.mesh is None and document.project is not None
+    assert len(document.project.runs()) == 1
+
+
+def test_the_default_boundary_is_listed_when_the_mesh_has_it(tmp_path):
+    from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, BoundaryCondition
+
+    scene = capacitor_scene()
+    scene.boundaries.pop()
+    scene.default_boundary = BoundaryCondition("dirichlet", {"g": "0"})
+    path = tmp_path / "scene.json"
+    save_scene(scene, path)
+    document = open_document(path, tmp_path)
+    assert document.mesh is not None
+    assert document.boundary_names == ["inner_electrode", DEFAULT_BOUNDARY_NAME]
+
+
+def test_a_default_boundary_nobody_needs_is_not_listed(tmp_path):
+    from femstudio.core.scene.boundary import BoundaryCondition
+
+    scene = capacitor_scene()
+    scene.default_boundary = BoundaryCondition("dirichlet", {"g": "0"})
+    path = tmp_path / "scene.json"
+    save_scene(scene, path)
+    assert open_document(path, tmp_path).boundary_names == ["inner_electrode", "outer_wall"]

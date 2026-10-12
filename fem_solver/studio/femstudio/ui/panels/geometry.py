@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from femstudio.core.project.document import Document
-from femstudio.core.scene.boundary import Between, Outline, Side
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, Outline, Side
 from femstudio.core.scene.operations import Operation
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
 from femstudio.ui.widgets.readouts import PairsGrid, Section
@@ -70,6 +70,8 @@ class GeometryPanel(QWidget):
             rows = _shape_rows(scene.shape(name))
         elif scene is not None and kind == "region":
             rows = [("area", describe_area(scene.region(name).area))]
+        elif scene is not None and kind == "boundary" and name == DEFAULT_BOUNDARY_NAME:
+            rows = [("curve", "outer edges no boundary names")]
         elif scene is not None and kind == "boundary":
             rows = [("curve", describe_curve(scene.boundary(name).curve))]
         elif scene is not None:
@@ -83,6 +85,8 @@ class GeometryPanel(QWidget):
                 ("regions", str(len(document.mesh.regions))),
                 ("boundaries", str(len(document.mesh.boundaries))),
             ]
+            if not document.mesh.regions and not document.mesh.boundaries:
+                rows.append(("note", "this mesh names no regions or boundaries"))
         heading = {"shape": "Shape", "region": "Region", "boundary": "Boundary"}.get(kind)
         self._section.set_heading(f"{heading}: {name}" if heading and scene else "Scene")
         self._grid.set_rows(rows)

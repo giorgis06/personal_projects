@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from femstudio.core.project.document import Document
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME
 from femstudio.physics import registry
 from femstudio.physics.base import FieldSpec, ProblemType
 from femstudio.ui.theme import tokens as t
@@ -67,7 +68,8 @@ class PhysicsPanel(QWidget):
         grid = PairsGrid()
         rows = []
         if kind == "boundary":
-            condition = scene.boundary(name).condition
+            is_default = name == DEFAULT_BOUNDARY_NAME
+            condition = scene.default_boundary if is_default else scene.boundary(name).condition
             if condition is None:
                 rows = [("condition", "none")]
             else:

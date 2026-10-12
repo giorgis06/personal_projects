@@ -313,7 +313,7 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
 | M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
 | M4 | done | Merged (#20). Run folders hold `scene.json`; stopping a solve is raising from `on_log`. |
-| M5 | in review | Opens a project folder, `scene.json`, `.msh` or `.geo`; a scene is meshed at about 40 elements across. Heatmap and 3D surface tabs are placeholders until M8; Run is disabled until M7; panels are read-only until M6 and M7. Window checked on screen under X11 and offscreen. |
+| M5 | in review | Opens a project folder, `scene.json`, `.msh` or `.geo`; a scene is meshed at about 40 elements across. Heatmap and 3D surface tabs are placeholders until M8; Run is disabled until M7; panels are read-only until M6 and M7. A scene that cannot be meshed yet still opens: shapes are drawn, the reason is shown in the viewport and the findings. Window checked on screen under X11 and offscreen. |
 | M6 | not started | |
 | M7 | not started | |
 | M8 | not started | |

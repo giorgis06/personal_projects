@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QDockWidget, QTreeWidget, QTreeWidgetItem
 
 from femstudio.core.project.document import Document
 from femstudio.core.results.reader import ResultError, read_run_info
-from femstudio.core.scene.boundary import Between
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, Boundary, Outline
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
 from femstudio.physics.base import ProblemType
 from femstudio.ui.theme import tokens as t
@@ -82,7 +82,7 @@ class SceneDock(QDockWidget):
         self._tree.setColumnCount(2)
         self._tree.setHeaderHidden(True)
         self._tree.setRootIsDecorated(False)
-        self._tree.setIndentation(0)
+        self._tree.setIndentation(t.TREE_INDENT)
         self._tree.header().setStretchLastSection(False)
         self._tree.header().setSectionResizeMode(0, self._tree.header().ResizeMode.Stretch)
         self._tree.header().setSectionResizeMode(1, self._tree.header().ResizeMode.ResizeToContents)
@@ -138,6 +138,11 @@ class SceneDock(QDockWidget):
             for index, boundary in enumerate(scene.boundaries):
                 summary = boundary_summary(boundary, problem_type)
                 self._add("boundary", boundary.name, summary, t.boundary_colour(index))
+            if DEFAULT_BOUNDARY_NAME in document.boundary_names:
+                index = len(scene.boundaries)
+                default = Boundary(DEFAULT_BOUNDARY_NAME, Outline(""), scene.default_boundary)
+                summary = boundary_summary(default, problem_type)
+                self._add("boundary", DEFAULT_BOUNDARY_NAME, summary, t.boundary_colour(index))
         else:
             for index, (name, ids) in enumerate(document.mesh.regions.items()):
                 self._add("region", name, f"{len(ids)} triangles", t.region_colour(index))

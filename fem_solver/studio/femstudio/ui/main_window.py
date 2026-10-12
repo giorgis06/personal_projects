@@ -147,9 +147,11 @@ class MainWindow(QMainWindow):
         self.properties.set_document(document)
         self.viewport.set_document(document)
         self.status.set_document(document)
-        self.log.append_line(
-            f"[open] {document.mesh.n_nodes} nodes, {document.mesh.n_triangles} triangles"
-        )
+        if document.mesh is None:
+            self.log.append_line(f"[mesh] not built: {document.mesh_error}")
+        else:
+            mesh = document.mesh
+            self.log.append_line(f"[open] {mesh.n_nodes} nodes, {mesh.n_triangles} triangles")
 
     def _choose_file(self) -> None:
         text = "Scene or mesh (*.json *.msh *.geo)"

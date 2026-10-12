@@ -57,7 +57,8 @@ QLabel#dockTitleText {{ color: {t.MUTED}; font-size: {t.TITLE_PT}pt; font-weight
 QToolButton#dockClose {{ border: none; background: transparent; color: {t.MUTED}; padding: 0 4px; }}
 QToolButton#dockClose:hover {{ color: {t.INK}; }}
 
-QTreeWidget#sceneTree {{ background: {t.SURFACE}; border: none; outline: 0; }}
+QTreeWidget#sceneTree {{ background: {t.SURFACE}; border: none; outline: 0;
+  padding-left: {t.GAP}px; }}
 QTreeWidget#sceneTree::item {{ min-height: {t.ROW_HEIGHT}px; }}
 QTreeWidget#sceneTree::item:selected {{ background: {t.SELECTION}; color: {t.INK}; }}
 

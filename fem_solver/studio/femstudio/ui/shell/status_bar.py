@@ -26,6 +26,11 @@ def collect_findings(document: Document | None) -> list[Finding]:
         findings += registry.get(scene.problem_type).validate(scene)
     except KeyError as error:
         findings.append(Finding("error", "problem-type", "scene", str(error.args[0])))
+    unexplained = document.mesh_error and not any(f.severity == "error" for f in findings)
+    if unexplained:
+        findings.append(
+            Finding("error", "mesh", "scene", f"cannot be meshed: {document.mesh_error}")
+        )
     return findings
 
 
@@ -86,10 +91,10 @@ class StatusPanel(QStatusBar):
         self._validation.setProperty("level", level)
         self._validation.style().unpolish(self._validation)
         self._validation.style().polish(self._validation)
-        if document is None:
+        if document is None or document.mesh is None:
             self._nodes.setText("")
             self._triangles.setText("")
-            self._size.setText("")
+            self._size.setText("" if document is None else "not meshed")
             return
         stats = quality(document.mesh)
         self._nodes.setText(f"{stats.n_nodes:,} nodes".replace(",", " "))

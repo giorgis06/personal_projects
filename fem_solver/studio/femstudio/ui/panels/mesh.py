@@ -23,6 +23,10 @@ class MeshPanel(QWidget):
         if document is None:
             self._grid.set_rows([("mesh", "none")])
             return
+        if document.mesh is None:
+            reason = document.mesh_error or "no mesh"
+            self._grid.set_rows([("mesh", "not built"), ("reason", reason)])
+            return
         stats = quality(document.mesh)
         rows = [
             ("nodes", f"{stats.n_nodes}"),

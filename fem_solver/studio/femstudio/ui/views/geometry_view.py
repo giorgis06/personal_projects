@@ -8,6 +8,8 @@ from femstudio.core.mesh.mesh_data import MeshData
 from femstudio.core.project.document import Document
 from femstudio.ui.theme import tokens as t
 
+UNNAMED_KIND = "unnamed"
+
 
 @dataclass(frozen=True)
 class Style:
@@ -76,6 +78,11 @@ class GeometryView(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        self._note = QLabel()
+        self._note.setProperty("role", "note")
+        self._note.setWordWrap(True)
+        self._note.hide()
+        layout.addWidget(self._note)
         self._document: Document | None = None
         self._selected: tuple[str, str] = ("", "")
         self._actors: dict[tuple[str, str], object] = {}
@@ -113,6 +120,9 @@ class GeometryView(QWidget):
         self._document = document
         self._selected = ("", "")
         self._actors = {}
+        unmeshed = document is not None and document.mesh is None
+        self._note.setText(f"Not meshed: {document.mesh_error}" if unmeshed else "")
+        self._note.setVisible(unmeshed)
         if self._plotter is None:
             return
         self._plotter.clear()
@@ -129,10 +139,25 @@ class GeometryView(QWidget):
             return
         self._actors[key] = self._plotter.add_mesh(poly, name=f"{key[0]}:{key[1]}", **options)
 
+    def note(self) -> str:
+        return self._note.text()
+
     def _draw(self, document: Document) -> None:
         mesh = document.mesh
         shapes, regions, boundaries = self.names()
         styles = element_styles(shapes, regions, boundaries, self._selected)
+        if mesh is None:
+            regions, boundaries = [], []
+        elif not mesh.regions and mesh.n_triangles:
+            self._add(
+                (UNNAMED_KIND, ""),
+                surface_of(mesh, np.arange(mesh.n_triangles)),
+                color=t.UNNAMED_FILL,
+                show_edges=self.show_edges,
+                edge_color=t.MESH_EDGE,
+                line_width=t.OUTLINE_WIDTH,
+                lighting=False,
+            )
         for name in regions:
             ids = mesh.regions.get(name)
             if ids is None:
@@ -180,6 +205,8 @@ class GeometryView(QWidget):
         shapes, regions, boundaries = self.names()
         styles = element_styles(shapes, regions, boundaries, self._selected)
         for key, actor in self._actors.items():
+            if key not in styles:
+                continue
             style = styles[key]
             prop = actor.GetProperty()
             prop.SetColor(*pv.Color(style.colour).float_rgb)

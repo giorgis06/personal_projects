@@ -2,9 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from femstudio.core.mesh.mesh_data import MeshData
-from femstudio.core.mesh.mesher import mesh_scene
+from femstudio.core.mesh.mesher import MeshError, mesh_scene
 from femstudio.core.mesh.reader import read_mesh
 from femstudio.core.project.project import SCENE_FILE, Project
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import load_scene
 
@@ -17,25 +18,34 @@ class DocumentError(ValueError):
 
 @dataclass
 class Document:
-    """What is open: a mesh, with the scene and project it came from when there are any."""
+    """What is open: a scene, a mesh, or both.
+
+    A scene that cannot be meshed yet (a region without a material, an outer edge nobody named,
+    no shapes) still opens: `mesh` is None and `mesh_error` says why.
+    """
 
     source: Path
-    mesh: MeshData
+    mesh: MeshData | None
     scene: Scene | None = None
     project: Project | None = None
     size: float | None = None  # element size the scene was meshed with
+    mesh_error: str | None = None
 
     @property
     def region_names(self) -> list[str]:
         if self.scene is not None:
             return [region.name for region in self.scene.regions]
-        return list(self.mesh.regions)
+        return list(self.mesh.regions) if self.mesh is not None else []
 
     @property
     def boundary_names(self) -> list[str]:
-        if self.scene is not None:
-            return [boundary.name for boundary in self.scene.boundaries]
-        return list(self.mesh.boundaries)
+        """The boundaries by name; outer edges covered by the default condition come last."""
+        if self.scene is None:
+            return list(self.mesh.boundaries) if self.mesh is not None else []
+        names = [boundary.name for boundary in self.scene.boundaries]
+        if self.mesh is not None and DEFAULT_BOUNDARY_NAME in self.mesh.boundaries:
+            names.append(DEFAULT_BOUNDARY_NAME)
+        return names
 
 
 def default_mesh_size(scene: Scene) -> float:
@@ -48,8 +58,11 @@ def default_mesh_size(scene: Scene) -> float:
 
 
 def _from_scene(scene: Scene, source: Path, workdir: Path, project: Project | None, on_log):
-    size = default_mesh_size(scene)
-    mesh = mesh_scene(scene, size, workdir / "mesh.msh", on_log)
+    try:
+        size = default_mesh_size(scene)
+        mesh = mesh_scene(scene, size, workdir / "mesh.msh", on_log)
+    except (DocumentError, MeshError) as error:
+        return Document(source, None, scene, project, mesh_error=str(error))
     return Document(source, mesh, scene, project, size)
 
 
