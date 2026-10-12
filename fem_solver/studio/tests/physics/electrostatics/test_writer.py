@@ -4,6 +4,7 @@ import re
 import meshio
 import pytest
 from examples.capacitor import capacitor_scene
+from femstudio.core.expressions.evaluate import evaluate
 from femstudio.core.expressions.grammar import parse
 from femstudio.core.mesh.mesher import mesh_scene
 from femstudio.core.scene.boundary import Between, Boundary, BoundaryCondition
@@ -14,6 +15,7 @@ from femstudio.physics import registry
 from femstudio.physics.base import ProblemError, SolverSettings
 
 # The example in ORCHESTRATOR.md under "Solver contract", copied literally.
+EPSILON_0 = 8.8541878128e-12  # F/m, from CODATA, written out here independently of the code
 CONTRACT_EXAMPLE = {
     "schema_version": 1,
     "problem_type": "electrostatics",
@@ -22,7 +24,7 @@ CONTRACT_EXAMPLE = {
         "glass": {"epsilon": [[4.0, 0.0], [0.0, 4.0]]},
         "air": {"epsilon": [[1.0, 0.0], [0.0, 1.0]]},
     },
-    "source": {"rho": "exp(-((x-1)^2 + y^2)/0.02)"},
+    "source": {"rho": "(exp(-((x-1)^2 + y^2)/0.02)) / 8.8541878128e-12"},
     "boundaries": {
         "inner_electrode": {"kind": "dirichlet", "g": "5*cos(theta)"},
         "outer_wall": {"kind": "dirichlet", "g": "0"},
@@ -108,7 +110,7 @@ def test_missing_source_uses_the_field_default(tmp_path, electrostatics):
     scene.source = {}
     mesh, folder = make_run(tmp_path, scene)
     document = json.loads(electrostatics.write_problem(scene, mesh, folder).read_text())
-    assert document["source"] == {"rho": "0"}
+    assert evaluate(document["source"]["rho"], 0.0, 0.0) == 0.0
 
 
 def test_boundary_without_condition_is_insulating(tmp_path, electrostatics):
@@ -194,3 +196,116 @@ def test_mesh_with_default_group_but_scene_without_one_is_refused(tmp_path, elec
     scene.default_boundary = None
     with pytest.raises(ProblemError, match="outer edges the scene gives no condition"):
         electrostatics.write_problem(scene, mesh, folder)
+
+
+def written(tmp_path, electrostatics, scene, size=0.2):
+    mesh, folder = make_run(tmp_path, scene, size)
+    return json.loads(electrostatics.write_problem(scene, mesh, folder).read_text())
+
+
+def test_charge_density_is_divided_by_epsilon_0(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.source["rho"] = "1"
+    document = written(tmp_path, electrostatics, scene)
+    assert evaluate(document["source"]["rho"], 0.0, 0.0) == pytest.approx(1 / EPSILON_0, rel=1e-9)
+
+
+def test_charge_density_keeps_its_spatial_shape_when_scaled(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.source["rho"] = "x + 2*y"
+    document = written(tmp_path, electrostatics, scene)
+    assert evaluate(document["source"]["rho"], 3.0, 1.0) == pytest.approx(5.0 / EPSILON_0, rel=1e-9)
+
+
+def test_surface_charge_is_divided_by_epsilon_0(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.boundaries[1].condition = BoundaryCondition("neumann", {"g": "2"})
+    boundary = written(tmp_path, electrostatics, scene)["boundaries"]["outer_wall"]
+    assert boundary["kind"] == "neumann"
+    assert evaluate(boundary["g"], 0.0, 0.0) == pytest.approx(2 / EPSILON_0, rel=1e-9)
+
+
+def test_dirichlet_potential_is_written_unchanged(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.boundaries[0].condition.values["g"] = "5"
+    boundary = written(tmp_path, electrostatics, scene)["boundaries"]["inner_electrode"]
+    assert boundary == {"kind": "dirichlet", "g": "5"}
+
+
+def test_robin_writes_kappa_and_g_as_kappa_times_the_reference_potential(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.boundaries[1].condition = BoundaryCondition("robin", {"kappa": "2", "u_ref": "5"})
+    boundary = written(tmp_path, electrostatics, scene)["boundaries"]["outer_wall"]
+    assert set(boundary) == {"kind", "kappa", "g"}
+    assert boundary["kind"] == "robin"
+    assert evaluate(boundary["kappa"], 0.0, 0.0) == 2.0
+    assert evaluate(boundary["g"], 0.0, 0.0) == 10.0
+
+
+def test_robin_g_follows_the_position_when_kappa_does(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.boundaries[1].condition = BoundaryCondition("robin", {"kappa": "x + 3", "u_ref": "y"})
+    boundary = written(tmp_path, electrostatics, scene)["boundaries"]["outer_wall"]
+    assert evaluate(boundary["g"], 2.0, 4.0) == pytest.approx((2 + 3) * 4)
+
+
+def test_scalar_permittivity_that_is_not_positive_is_refused(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    mesh, folder = make_run(tmp_path, scene)
+    for value in (-1.0, 0.0, float("nan"), float("inf")):
+        scene.regions[0].material["epsilon"] = value
+        with pytest.raises(ProblemError, match="epsilon"):
+            electrostatics.write_problem(scene, mesh, folder)
+    assert not (folder / "problem.json").exists()
+
+
+@pytest.mark.parametrize("bad", [5, 2.5])
+def test_numbers_where_expressions_are_expected_are_a_finding(tmp_path, electrostatics, bad):
+    scene = capacitor_scene()
+    mesh, folder = make_run(tmp_path, scene)
+    scene.boundaries[0].condition.values["g"] = bad
+    with pytest.raises(ProblemError, match="g must be an expression string"):
+        electrostatics.write_problem(scene, mesh, folder)
+    scene.boundaries[0].condition.values["g"] = "5"
+    scene.source["rho"] = bad
+    with pytest.raises(ProblemError, match="rho must be an expression string"):
+        electrostatics.write_problem(scene, mesh, folder)
+
+
+def test_mesh_with_a_region_the_scene_lacks_is_refused(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    mesh, folder = make_run(tmp_path, scene)
+    scene.regions = scene.regions[:1]
+    with pytest.raises(ProblemError, match="the mesh has a region 'air' the scene does not"):
+        electrostatics.write_problem(scene, mesh, folder)
+
+
+def test_mesh_with_a_boundary_the_scene_lacks_is_refused(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    scene.boundaries.append(Boundary("interface", Between("glass", "air")))
+    mesh, folder = make_run(tmp_path, scene)
+    scene.boundaries.pop()
+    with pytest.raises(ProblemError, match="the mesh has a boundary 'interface'"):
+        electrostatics.write_problem(scene, mesh, folder)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"tolerance": -1.0}, {"tolerance": float("nan")}, {"max_iterations": 0}]
+)
+def test_solver_settings_are_checked_when_built(kwargs):
+    with pytest.raises(ProblemError):
+        SolverSettings(**kwargs)
+
+
+def test_unsupported_solver_method_is_refused(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    mesh, folder = make_run(tmp_path, scene)
+    with pytest.raises(ProblemError, match="method 'lu'"):
+        electrostatics.write_problem(scene, mesh, folder, SolverSettings(method="lu"))
+
+
+def test_the_file_is_strict_json(tmp_path, electrostatics):
+    scene = capacitor_scene()
+    mesh, folder = make_run(tmp_path, scene)
+    path = electrostatics.write_problem(scene, mesh, folder)
+    assert not re.search(r"\b(NaN|Infinity)\b", path.read_text())

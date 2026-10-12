@@ -1,3 +1,6 @@
+import importlib
+import pkgutil
+
 import pytest
 from femstudio.physics import registry
 from femstudio.physics.base import ProblemType
@@ -42,3 +45,21 @@ def test_registering_a_name_twice_is_refused(clean_registry):
     clean_registry.register(Dummy())
     with pytest.raises(ValueError, match="already registered"):
         clean_registry.register(Dummy())
+
+
+def test_a_failed_discovery_is_not_remembered_as_done(monkeypatch):
+    broken = pkgutil.ModuleInfo(None, "broken", True)
+    real_import = importlib.import_module
+
+    def fake_import(name, *args):
+        if name.endswith(".broken"):
+            raise ImportError("boom")
+        return real_import(name, *args)
+
+    monkeypatch.setattr(registry, "_discovered", False)
+    monkeypatch.setattr(registry.pkgutil, "iter_modules", lambda path: [broken])
+    monkeypatch.setattr(registry.importlib, "import_module", fake_import)
+    for _ in range(2):
+        with pytest.raises(ImportError, match="boom"):
+            registry.get("electrostatics")
+    assert registry._discovered is False

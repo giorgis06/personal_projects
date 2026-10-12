@@ -193,6 +193,15 @@ def test_bad_expression_in_the_source():
     assert ("error", "expressions", "source 'rho'") in found(scene)
 
 
+@pytest.mark.parametrize("bad", [5, 2.5, None])
+def test_a_non_text_expression_is_a_finding_not_a_crash(bad):
+    scene = capacitor_scene()
+    scene.boundaries[0].condition.values["g"] = bad
+    scene.source["rho"] = bad
+    assert ("error", "expressions", "boundary 'inner_electrode'") in found(scene)
+    assert ("error", "expressions", "source 'rho'") in found(scene)
+
+
 def test_bad_expression_in_the_default_boundary():
     scene = capacitor_scene()
     scene.default_boundary = BoundaryCondition("dirichlet", {"g": "q"})

@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +54,12 @@ class SolverSettings:
     tolerance: float = 1e-10
     max_iterations: int = 10000
 
+    def __post_init__(self) -> None:
+        if not (math.isfinite(self.tolerance) and self.tolerance > 0):
+            raise ProblemError("solver tolerance must be a finite positive number")
+        if not (isinstance(self.max_iterations, int) and self.max_iterations >= 1):
+            raise ProblemError("solver max_iterations must be a positive integer")
+
 
 class ProblemType(ABC):
     """A kind of physics, described as data so forms and checks need not know which."""
@@ -88,14 +95,24 @@ class ProblemType(ABC):
 
     def _check_material_types(self, region: str, material: dict) -> list[Finding]:
         findings = []
+        subject = f"region '{region}'"
         for spec in self.material_fields:
             value = material.get(spec.name)
-            numeric = isinstance(value, (int, float))
-            matrix = isinstance(value, tuple)
-            if value is not None and not (numeric or (spec.kind == "tensor" and matrix)):
+            if value is None:
+                continue
+            if isinstance(value, (int, float)):
+                if not math.isfinite(value):
+                    findings.append(
+                        _error("material-fields", subject, f"{spec.name} is not finite")
+                    )
+                elif spec.kind == "tensor" and value <= 0:
+                    message = f"{spec.name} as a single number must be positive"
+                    findings.append(_error("material-fields", subject, message))
+            elif not (spec.kind == "tensor" and isinstance(value, tuple)):
                 wanted = "number or 2x2 matrix" if spec.kind == "tensor" else "number"
-                message = f"{spec.name} must be a {wanted}"
-                findings.append(_error("material-fields", f"region '{region}'", message))
+                findings.append(
+                    _error("material-fields", subject, f"{spec.name} must be a {wanted}")
+                )
         return findings
 
     def _check_condition(self, subject: str, condition) -> list[Finding]:
