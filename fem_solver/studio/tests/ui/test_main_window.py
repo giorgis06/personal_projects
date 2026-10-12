@@ -378,3 +378,10 @@ def test_zoomed_widgets_created_later_are_sized_at_the_current_zoom(window, qtbo
     window.scene_dock.select("region", "glass")
     grid = window.properties.panel("Geometry")._grid
     assert grid._layout.verticalSpacing() == round(t.GAP * 1.5)
+
+
+def test_a_stored_nan_does_not_stop_the_window_opening(qtbot, settings):
+    settings.setValue("interface/zoom", "nan")
+    window = MainWindow(settings)
+    qtbot.addWidget(window)
+    assert window.status.zoom_text() == "Zoom 100 %"

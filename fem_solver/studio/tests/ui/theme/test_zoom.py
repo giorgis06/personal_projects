@@ -69,9 +69,15 @@ def test_the_choice_is_remembered(tmp_path):
     assert zoom.load(again) == 1.3
 
 
-@pytest.mark.parametrize("value", ["abc", "9.0", "0.1", None])
+@pytest.mark.parametrize("value", ["abc", "9.0", "0.1", "nan", "inf", "-inf", "-3", None])
 def test_a_bad_stored_value_falls_back_or_is_clamped(tmp_path, value):
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     if value is not None:
         settings.setValue(zoom.SETTINGS_KEY, value)
     assert zoom.MINIMUM <= zoom.load(settings) <= zoom.MAXIMUM
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_a_factor_that_is_not_a_finite_number_counts_as_one_hundred_percent(value):
+    assert zoom.clamp(value) == 1.0
+    assert zoom.px(22, zoom.clamp(value)) == 22

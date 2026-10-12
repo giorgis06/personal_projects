@@ -1,5 +1,7 @@
 """The interface scale factor. Tokens stay the 100 % values; sized things go through `px`/`pt`."""
 
+import math
+
 from PySide6.QtCore import QSettings
 
 MINIMUM = 0.7
@@ -11,7 +13,9 @@ _current = 1.0
 
 
 def clamp(factor: float) -> float:
-    """The nearest allowed factor, in steps of 0.1."""
+    """The nearest allowed factor, in steps of 0.1; a value that is not a number counts as 100 %."""
+    if not math.isfinite(factor):
+        return 1.0
     return round(min(max(factor, MINIMUM), MAXIMUM), 1)
 
 
