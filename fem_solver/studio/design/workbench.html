@@ -1,0 +1,150 @@
+<!doctype html>
+<!--
+  View-only reference mockup of the FEM Studio main window ("Workbench" design).
+  Open it in a browser. Nothing is interactive. It shows the capacitor example after a solve.
+  The field is the exact two-layer solution; mesh counts and solver figures are example values.
+  The written specification is the "Window design" section of ../ORCHESTRATOR.md; where the two
+  differ, the specification wins.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FEM Studio: Workbench mockup</title>
+<style>
+:root {
+  /* The same tokens the app keeps in femstudio/ui/theme/ */
+  --panel: #eceff2; --surface: #ffffff; --stage: #f7f8fa; --chrome: #dfe4e9;
+  --ink: #1b242d; --muted: #647180; --rule: #c9d1d9; --selection: #dbe8fb;
+  --accent: #1d5fb8; --success: #1e7d4b;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+body { margin: 0; padding: 24px; background: #d9dee3; font-family: var(--sans); color: var(--ink) }
+.window { max-width: 1120px; min-width: 960px; margin: 0 auto; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;
+  background: var(--panel); font-size: 12.5px; line-height: 1.35; display: grid; grid-template-rows: auto auto 1fr auto auto; height: 620px }
+.menu { display: flex; gap: 18px; padding: 6px 12px; background: var(--chrome); border-bottom: 1px solid var(--rule) }
+.menu b { font-weight: 600; margin-right: 10px }
+.steps { display: flex; align-items: center; background: var(--surface); border-bottom: 1px solid var(--rule); padding: 0 8px }
+.steps span { padding: 9px 16px; color: var(--muted); border-bottom: 2px solid transparent }
+.steps .on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600 }
+.steps .gap { flex: 1; padding: 0 }
+.steps .select { border: 1px solid var(--rule); border-radius: 4px; padding: 4px 10px; color: var(--ink) }
+.steps .run { background: var(--accent); color: #fff; border-radius: 4px; padding: 5px 16px; margin-left: 8px; font-weight: 600 }
+.body { display: grid; grid-template-columns: 212px 1fr 232px; min-height: 0 }
+.dock { background: var(--surface); border-right: 1px solid var(--rule); overflow: hidden }
+.dock.right { border-right: 0; border-left: 1px solid var(--rule) }
+.dock-title { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 7px 10px; background: var(--panel); border-bottom: 1px solid var(--rule); font-weight: 600 }
+.tree { padding: 6px 0 }
+.tree div { padding: 3px 10px 3px 24px; display: flex; justify-content: space-between; gap: 8px }
+.tree .group { padding-left: 10px; font-weight: 600; margin-top: 4px }
+.tree .selected { background: var(--selection) }
+.tree i { font-style: normal; color: var(--muted); font-family: var(--mono); font-size: 11.5px }
+.view { display: grid; grid-template-rows: auto 1fr; min-height: 0; background: var(--stage) }
+.tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--rule) }
+.tabs span { padding: 5px 12px; border: 1px solid var(--rule); border-bottom: 0; border-radius: 4px 4px 0 0; background: var(--panel); color: var(--muted) }
+.tabs .on { background: var(--stage); color: var(--ink); font-weight: 600; margin-bottom: -1px; padding-bottom: 6px }
+.stage { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px }
+.stage canvas { width: 330px; height: 330px }
+.colourbar { width: 14px; height: 280px; border-radius: 2px }
+.ticks { height: 280px; display: flex; flex-direction: column; justify-content: space-between; color: var(--muted); font-family: var(--mono); font-size: 11px }
+.props { padding: 10px; display: flex; flex-direction: column; gap: 12px }
+.props h4 { margin: 0 0 5px; font-size: 12px; font-weight: 600 }
+.pairs { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; color: var(--muted) }
+.pairs b { color: var(--ink); font-weight: 500 }
+.tensor { display: grid; grid-template-columns: 1fr 1fr; gap: 4px }
+.field { border: 1px solid var(--rule); border-radius: 3px; padding: 3px 7px; background: #fff; font-family: var(--mono) }
+.log { background: var(--surface); border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 11.5px; padding: 6px 12px; color: var(--muted); height: 62px; overflow: hidden }
+.log b { color: var(--success); font-weight: 500 }
+.status { display: flex; gap: 20px; padding: 4px 12px; background: var(--chrome); border-top: 1px solid var(--rule); color: var(--muted); font-size: 11.5px }
+.status .ok { color: var(--success) }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="menu"><b>FEM Studio</b><span>File</span><span>Edit</span><span>View</span><span>Run</span><span>Help</span></div>
+
+  <div class="steps">
+    <span>Geometry</span><span>Physics</span><span>Mesh</span><span>Solve</span><span class="on">Results</span>
+    <span class="gap"></span><span class="select">Backend: fem (C++)</span><span class="run">Run</span>
+  </div>
+
+  <div class="body">
+    <div class="dock">
+      <div class="dock-title">Scene</div>
+      <div class="tree">
+        <div class="group">Shapes</div><div>outer_wall <i>r 2.0</i></div><div>glass <i>r 0.5</i></div><div>inner_electrode <i>r 0.2</i></div>
+        <div class="group">Regions</div><div class="selected">glass <i>&epsilon; 4</i></div><div>air <i>&epsilon; 1</i></div>
+        <div class="group">Boundaries</div><div>inner_electrode <i>5 V</i></div><div>outer_wall <i>0 V</i></div><div>interface <i>none</i></div>
+        <div class="group">Runs</div><div>run 3 <i>0.41 s</i></div><div>run 2 <i>0.39 s</i></div>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="tabs"><span class="on">Heatmap</span><span>3D surface</span><span>Mesh</span><span>Geometry</span></div>
+      <div class="stage">
+        <canvas id="heat" width="580" height="580"></canvas>
+        <div class="colourbar" id="bar"></div>
+        <div class="ticks"><span>5.0 V</span><span>3.75</span><span>2.5</span><span>1.25</span><span>0.0</span></div>
+      </div>
+    </div>
+
+    <div class="dock right">
+      <div class="dock-title">Properties</div>
+      <div class="props">
+        <div><h4>Region: glass</h4><div class="tensor"><span class="field">4.0</span><span class="field">0.0</span><span class="field">0.0</span><span class="field">4.0</span></div></div>
+        <div><h4>Display</h4><div class="pairs"><span>Field</span><b class="field">u (potential)</b><span>Range</span><b class="field">0.0 to 5.0 V</b><span>Colours</span><b class="field">viridis</b><span>Mesh</span><b>shown</b></div></div>
+        <div><h4>Probe</h4><div class="pairs"><span>x, y</span><b>0.31, 0.12</b><span>u</span><b>4.06 V</b></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log">[solve] cg + jacobi, tol 1e-10, max 10000<br>[solve] iter 214, residual 8.3e-11<br><b>[done]</b> wrote result/solution.csv, run.json in 0.41 s</div>
+  <div class="status"><span class="ok">Validation: 0 errors, 1 warning</span><span>5 812 nodes</span><span>11 340 triangles</span><span>h = 0.05</span></div>
+</div>
+
+<script>
+(function () {
+  // Exact potential of the two-layer cylindrical capacitor: electrode a, glass to b (eps 4), air to R (eps 1).
+  var a = 0.2, b = 0.5, R = 2, e1 = 4, e2 = 1, V = 5;
+  var C = V / (Math.log(b / a) / e1 + Math.log(R / b) / e2);
+  function u(r) { if (r <= a) return V; if (r <= b) return V - C / e1 * Math.log(r / a); return C / e2 * Math.log(R / r); }
+
+  var viridis = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
+  function colour(t) {
+    var x = Math.max(0, Math.min(1, t)) * (viridis.length - 1), i = Math.min(viridis.length - 2, Math.floor(x)), f = x - i;
+    return [0, 1, 2].map(function (k) { return Math.round(viridis[i][k] + (viridis[i + 1][k] - viridis[i][k]) * f); });
+  }
+
+  var cv = document.getElementById("heat"), g = cv.getContext("2d"), N = cv.width, half = N / 2, sc = half * 0.97 / R;
+  var img = g.createImageData(N, N), d = img.data;
+  for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+    var r = Math.hypot(x - half + 0.5, y - half + 0.5) / sc, k = (y * N + x) * 4;
+    if (r > R) { d[k + 3] = 0; continue; }
+    var c = colour(u(r) / V); d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2];
+    d[k + 3] = r > R - 1.5 / sc ? Math.round(255 * (R - r) * sc / 1.5) : 255;
+  }
+  g.putImageData(img, 0, 0);
+
+  // Mesh overlay: a polar triangulation standing in for the real mesh.
+  var rings = [], nr = 13, nt = 40;
+  for (var i = 0; i <= nr; i++) rings.push(a * Math.pow(R / a, i / nr));
+  g.strokeStyle = "rgba(255,255,255,.3)"; g.lineWidth = N / 620; g.beginPath();
+  for (i = 0; i < rings.length; i++) for (var j = 0; j < nt; j++) {
+    var t0 = j / nt * 2 * Math.PI, t1 = (j + 1) / nt * 2 * Math.PI, r0 = rings[i] * sc;
+    g.moveTo(half + r0 * Math.cos(t0), half + r0 * Math.sin(t0)); g.lineTo(half + r0 * Math.cos(t1), half + r0 * Math.sin(t1));
+    if (i < rings.length - 1) { var r1 = rings[i + 1] * sc;
+      g.moveTo(half + r0 * Math.cos(t0), half + r0 * Math.sin(t0)); g.lineTo(half + r1 * Math.cos(t0), half + r1 * Math.sin(t0));
+      g.moveTo(half + r0 * Math.cos(t0), half + r0 * Math.sin(t0)); g.lineTo(half + r1 * Math.cos(t1), half + r1 * Math.sin(t1)); }
+  }
+  g.stroke();
+  g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = N / 380;
+  g.beginPath(); g.arc(half, half, b * sc, 0, 7); g.stroke();
+  g.beginPath(); g.arc(half, half, a * sc, 0, 7); g.stroke();
+
+  document.getElementById("bar").style.background = "linear-gradient(to top," +
+    viridis.map(function (c) { return "rgb(" + c.join(",") + ")"; }).join(",") + ")";
+})();
+</script>
+</body>
+</html>
