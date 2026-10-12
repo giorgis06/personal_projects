@@ -1,10 +1,9 @@
 from pathlib import Path
 
-from femstudio.core.project.run import Run
+from femstudio.core.project.run import SCENE_FILE, Run, is_run_folder
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import load_scene, save_scene
 
-SCENE_FILE = "scene.json"
 RUNS_DIR = "runs"
 
 
@@ -16,7 +15,7 @@ class Project:
     """A folder holding one scene and the runs made from it."""
 
     def __init__(self, folder: Path) -> None:
-        self.folder = Path(folder)
+        self.folder = Path(folder).resolve()
 
     @classmethod
     def create(cls, folder: Path, scene: Scene) -> "Project":
@@ -41,7 +40,7 @@ class Project:
 
     def runs(self) -> list[Run]:
         root = self.folder / RUNS_DIR
-        found = [Run(p) for p in root.glob("run_*") if p.is_dir()] if root.is_dir() else []
+        found = [Run(p) for p in root.iterdir() if is_run_folder(p)] if root.is_dir() else []
         return sorted(found, key=lambda run: run.number)
 
     def new_run(self) -> Run:

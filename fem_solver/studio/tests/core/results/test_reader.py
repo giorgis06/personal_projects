@@ -38,7 +38,7 @@ def write_run(folder, **changes):
 
 def test_values_follow_the_node_tags_not_the_row_order(tmp_path, mesh):
     write_csv(tmp_path, "node_tag,u\n10,1.5\n20,2.5\n30,3.5\n")
-    field = read_solution(tmp_path, mesh)
+    field = read_solution(tmp_path, mesh, name="u", unit="V")
     np.testing.assert_array_equal(field.values, [3.5, 1.5, 2.5])
     assert (field.name, field.unit, field.location) == ("u", "V", "node")
 
@@ -86,12 +86,12 @@ def test_run_info_allows_null_iterations_and_residual(tmp_path):
 def test_malformed_solution_is_refused(tmp_path, mesh, text):
     write_csv(tmp_path, text)
     with pytest.raises(ResultError):
-        read_solution(tmp_path, mesh)
+        read_solution(tmp_path, mesh, name="u", unit="V")
 
 
 def test_missing_files(tmp_path, mesh):
     with pytest.raises(ResultError, match="solution.csv is missing"):
-        read_solution(tmp_path, mesh)
+        read_solution(tmp_path, mesh, name="u", unit="V")
     with pytest.raises(ResultError, match="run.json is missing"):
         read_run_info(tmp_path)
 
@@ -117,3 +117,9 @@ def test_run_info_not_json(tmp_path):
     (tmp_path / "run.json").write_text("{nope")
     with pytest.raises(ResultError, match="not valid JSON"):
         read_run_info(tmp_path)
+
+
+def test_field_name_and_unit_come_from_the_caller(tmp_path, mesh):
+    write_csv(tmp_path, "node_tag,u\n10,1\n20,2\n30,3\n")
+    field = read_solution(tmp_path, mesh, name="temperature", unit="K")
+    assert (field.name, field.unit) == ("temperature", "K")

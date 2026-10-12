@@ -64,7 +64,7 @@ def read_run_info(result_dir: Path) -> RunInfo:
         raise ResultError(f"{RUN_FILE} is malformed: {error}") from error
 
 
-def read_solution(result_dir: Path, mesh: MeshData) -> Field:
+def read_solution(result_dir: Path, mesh: MeshData, *, name: str, unit: str) -> Field:
     """Match each row's node tag to the mesh, so row order carries no meaning."""
     path = Path(result_dir) / SOLUTION_FILE
     if not path.is_file():
@@ -97,4 +97,4 @@ def read_solution(result_dir: Path, mesh: MeshData) -> Field:
         )
     result = np.empty(mesh.n_nodes)
     result[order[position]] = values
-    return Field("u", result, "V")
+    return Field(name, result, unit)

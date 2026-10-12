@@ -19,7 +19,7 @@ def run_folder(tmp_path):
 def test_field_is_the_cosine_bump_over_the_bounding_box(run_folder):
     folder, mesh = run_folder
     MockBackend().solve(folder, lambda line: None)
-    field = read_solution(folder / "result", mesh)
+    field = read_solution(folder / "result", mesh, name="u", unit="V")
     x, y = mesh.nodes.T
     (x0, x1), (y0, y1) = (x.min(), x.max()), (y.min(), y.max())
     expected = np.cos(np.pi * (x - (x0 + x1) / 2) / (x1 - x0)) * np.cos(

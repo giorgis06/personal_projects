@@ -21,14 +21,28 @@ from femstudio.core.results.reader import (
 
 ENVIRONMENT_VARIABLE = "FEM_EXECUTABLE"
 BUILT_EXECUTABLE = Path(__file__).resolve().parents[3] / "fem"
+STOP_GRACE_SECONDS = 5
 
 
 def default_executable() -> Path:
     return Path(os.environ.get(ENVIRONMENT_VARIABLE) or BUILT_EXECUTABLE)
 
 
+def _stop(process: subprocess.Popen) -> None:
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(STOP_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
 class ExecutableBackend(SolverBackend):
-    """Runs `fem <run_folder>/problem.json` and reads `result/` as the solver contract describes."""
+    """Runs `fem <run_folder>/problem.json` and reads `result/` as the solver contract describes.
+
+    To stop a solve, raise from `on_log`: the process is terminated and the exception propagates.
+    """
 
     name = "fem"
     supported_problem_types = (ANY_PROBLEM_TYPE,)  # the solver itself refuses what it lacks
@@ -38,7 +52,8 @@ class ExecutableBackend(SolverBackend):
 
     @property
     def executable(self) -> Path:
-        return self._executable if self._executable is not None else default_executable()
+        path = self._executable if self._executable is not None else default_executable()
+        return path.resolve()
 
     def is_available(self) -> bool:
         """Whether the file exists and can be run. The contract has no probe to ask more."""
@@ -46,25 +61,30 @@ class ExecutableBackend(SolverBackend):
         return path.is_file() and os.access(path, os.X_OK)
 
     def solve(self, run_folder: Path, on_log: Callable[[str], None]) -> RunInfo:
-        run_folder = Path(run_folder)
+        run_folder = Path(run_folder).resolve()
         if not self.is_available():
-            raise BackendUnavailable(
-                f"solver executable not found or not runnable: {self.executable}"
+            raise BackendUnavailable(f"solver executable not runnable: {self.executable}")
+        try:
+            process = subprocess.Popen(
+                [str(self.executable), str(run_folder / PROBLEM_FILE)],
+                cwd=run_folder,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                errors="replace",
             )
-        process = subprocess.Popen(
-            [str(self.executable), str(run_folder / PROBLEM_FILE)],
-            cwd=run_folder,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        except OSError as error:
+            raise BackendUnavailable(f"cannot run {self.executable}: {error}") from error
         errors: list[str] = []
         reader = threading.Thread(target=lambda: errors.extend(process.stderr), daemon=True)
         reader.start()
-        for line in process.stdout:
-            on_log(line.rstrip("\n"))
-        code = process.wait()
-        reader.join()
+        try:
+            for line in process.stdout:
+                on_log(line.rstrip("\n"))
+            code = process.wait()
+        finally:
+            _stop(process)
+            reader.join()
         if code != 0:
             message = "".join(errors).strip() or f"solver exited with status {code}"
             raise SolverError(message, exit_code=code)

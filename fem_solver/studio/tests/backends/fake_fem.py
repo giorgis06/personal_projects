@@ -5,6 +5,7 @@ import json
 import math
 import os
 import sys
+import time
 from pathlib import Path
 
 from femstudio.core.mesh.reader import read_mesh
@@ -32,7 +33,13 @@ def main() -> int:
     problem = Path(sys.argv[1])
     document = json.loads(problem.read_text())
     folder = problem.parent
+    if mode == "binary_output":
+        sys.stdout.buffer.write(b"progress \xff\xfe not utf-8\n")
+        sys.stdout.buffer.flush()
     print(f"fake fem: problem {document['problem_type']}", flush=True)
+    if mode == "slow":
+        (folder / "pid.txt").write_text(str(os.getpid()))
+        time.sleep(60)
 
     if mode == "fail":
         print("matrix is singular: no dirichlet boundary", file=sys.stderr)

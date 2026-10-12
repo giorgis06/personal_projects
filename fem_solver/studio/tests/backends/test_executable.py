@@ -1,6 +1,8 @@
 import json
 import os
 import stat
+import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -33,7 +35,7 @@ def test_success_streams_progress_and_returns_the_run_info(fake_fem, run_folder)
 def test_result_is_matched_to_the_mesh_by_node_tag(fake_fem, run_folder):
     folder, mesh = run_folder
     ExecutableBackend(fake_fem).solve(folder, lambda line: None)
-    field = read_solution(folder / "result", mesh)
+    field = read_solution(folder / "result", mesh, name="u", unit="V")
     np.testing.assert_allclose(field.values, mesh.nodes[:, 0] + 2.0 * mesh.nodes[:, 1])
 
 
@@ -41,7 +43,7 @@ def test_row_order_in_the_result_does_not_matter(fake_fem, run_folder, monkeypat
     folder, mesh = run_folder
     monkeypatch.setenv("FAKE_FEM_MODE", "shuffled")
     ExecutableBackend(fake_fem).solve(folder, lambda line: None)
-    field = read_solution(folder / "result", mesh)
+    field = read_solution(folder / "result", mesh, name="u", unit="V")
     np.testing.assert_allclose(field.values, mesh.nodes[:, 0] + 2.0 * mesh.nodes[:, 1])
 
 
@@ -118,3 +120,48 @@ def test_solver_is_run_from_the_run_folder(tmp_path, run_folder):
         ExecutableBackend(probe).solve(folder, lambda line: None)
     assert os.path.samefile((folder / "cwd.txt").read_text().strip(), folder)
     assert json.loads((folder / "problem.json").read_text())["mesh"] == "mesh.msh"
+
+
+def test_output_that_is_not_utf8_does_not_break_the_stream(fake_fem, run_folder, monkeypatch):
+    folder, _ = run_folder
+    monkeypatch.setenv("FAKE_FEM_MODE", "binary_output")
+    lines = []
+    info = ExecutableBackend(fake_fem).solve(folder, lines.append)
+    assert info.status == "success"
+    assert lines[0].startswith("progress") and "not utf-8" in lines[0]
+
+
+def test_a_file_that_is_not_a_program_is_a_typed_error(tmp_path, run_folder):
+    folder, _ = run_folder
+    junk = tmp_path / "fem"
+    junk.write_bytes(b"\x00\x01\x02 not an executable")
+    junk.chmod(junk.stat().st_mode | stat.S_IXUSR)
+    with pytest.raises(BackendUnavailable, match="cannot run"):
+        ExecutableBackend(junk).solve(folder, lambda line: None)
+
+
+def test_relative_executable_and_run_folder(tmp_path, fake_fem, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    scene = capacitor_scene()
+    mesh = mesh_scene(scene, 0.2, Path("rel_run") / "mesh.msh")
+    physics.get("electrostatics").write_problem(scene, mesh, Path("rel_run"))
+    relative_exe = Path(os.path.relpath(fake_fem, tmp_path))
+    assert not relative_exe.is_absolute()
+    info = ExecutableBackend(relative_exe).solve(Path("rel_run"), lambda line: None)
+    assert info.status == "success"
+
+
+def test_an_exception_from_on_log_stops_the_solver(fake_fem, run_folder, monkeypatch):
+    folder, _ = run_folder
+    monkeypatch.setenv("FAKE_FEM_MODE", "slow")
+
+    def cancel(line):
+        raise RuntimeError("cancelled by the user")
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="cancelled by the user"):
+        ExecutableBackend(fake_fem).solve(folder, cancel)
+    assert time.monotonic() - started < 30
+    pid = int((folder / "pid.txt").read_text())
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)

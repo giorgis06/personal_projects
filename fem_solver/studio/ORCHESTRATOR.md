@@ -310,7 +310,7 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
 | M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
-| M4 | in review | Run folder is `<project>/runs/run_NNN/{problem.json, mesh.msh, result/, log.txt, status.json}`. `Run.execute` takes the problem type and backend as arguments so `core/` imports neither. `ProblemType.derive` is new. The real-solver test runs only when `FEM_EXECUTABLE` is set. |
+| M4 | in review | Run folder is `<project>/runs/run_NNN/{scene.json, problem.json, mesh.msh, result/, log.txt, status.json}`; the run keeps the scene it was solved with. To stop a solve, raise from `on_log`. `Run.execute` takes the problem type and backend as arguments so `core/` imports neither. `ProblemType.derive` is new. The real-solver test runs only when `FEM_EXECUTABLE` is set. |
 | M5 | not started | |
 | M6 | not started | |
 | M7 | not started | |
