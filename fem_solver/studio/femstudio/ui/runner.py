@@ -82,4 +82,6 @@ class Runner(QObject):
         else:
             lines = [line for line in errors.strip().splitlines() if line.strip()]
             state, message = "failed", run.message or (lines[-1] if lines else f"exit {exit_code}")
+        if state != "success":
+            run.abandon(message)  # a process ended early leaves its status as it was
         self.finished.emit(run.number, state, message)

@@ -174,8 +174,17 @@ class PhysicsPanel(QWidget):
 
     # -- committing edits
 
+    def _refused(self, form: FieldForm) -> bool:
+        """True, with the reason shown, when a number in `form` cannot be read."""
+        unreadable = form.unreadable()
+        if unreadable:
+            self._message.setText("; ".join(unreadable))
+        return bool(unreadable)
+
     def apply_region(self) -> None:
         name = self._name
+        if self._refused(self._widgets["material"]):
+            return
         values = self._widgets["material"].values()
         self._session.edit(
             f"edit {name}", lambda scene: edit.set_material(scene, name, values), geometry=False
@@ -191,6 +200,8 @@ class PhysicsPanel(QWidget):
         )
 
     def apply_source(self) -> None:
+        if self._refused(self._widgets["source"]):
+            return
         values = self._widgets["source"].values()
         self._session.edit(
             "edit source", lambda scene: edit.set_source(scene, values), geometry=False

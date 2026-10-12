@@ -104,6 +104,19 @@ def test_the_window_stays_responsive_while_the_solver_works(qtbot, opened, monke
     assert opened.workflow.run_text() == "Run"
 
 
+def test_a_run_stopped_at_once_is_not_left_as_created_or_running(
+    qtbot, opened, monkeypatch, fake_fem
+):
+    use_fake_solver(monkeypatch, fake_fem, opened, "chatty")
+    opened.workflow._run.click()
+    with qtbot.waitSignal(opened.runner.finished, timeout=WAIT_MS) as finished:
+        opened.workflow._run.click()  # Stop, before the solver can have started
+    assert finished.args[1:] == ["stopped", "stopped by the user"]
+    (run,) = opened.session.runs()
+    assert (run.state, run.message) == ("failed", "stopped by the user")
+    assert opened.scene_dock.rows()["run"] == [("run 1", "failed")]
+
+
 def test_edits_made_during_a_solve_do_not_reach_it(qtbot, opened, monkeypatch, fake_fem):
     use_fake_solver(monkeypatch, fake_fem, opened, "chatty")
     opened.workflow._run.click()
@@ -180,3 +193,18 @@ def test_another_scene_cannot_be_opened_during_a_solve(
     assert errors and errors[0][0] == "New scene"
     with qtbot.waitSignal(opened.runner.finished, timeout=WAIT_MS):
         opened.workflow._run.click()
+
+
+def test_closing_the_window_during_a_solve_asks_first(qtbot, opened, monkeypatch, fake_fem):
+    window = opened
+    use_fake_solver(monkeypatch, fake_fem, window, "chatty")
+    window.workflow._run.click()
+    wait_for_output(qtbot, window)
+    monkeypatch.setattr(type(window), "ask_stop_solve", lambda self: False)
+    window.close()
+    assert window.runner.busy  # declined: the solve goes on
+    assert window.isVisible()
+    monkeypatch.setattr(type(window), "ask_stop_solve", lambda self: True)
+    window.close()
+    assert window.runner.wait()
+    assert not window.isVisible()

@@ -153,3 +153,16 @@ def test_the_editors_are_only_buttons_and_inputs_the_user_can_reach(opened, pane
     select(opened, "region", "glass")
     buttons = [b for b in panel.findChildren(QPushButton) if b.isVisibleTo(panel)]
     assert [b.text() for b in buttons] == ["Apply"]
+
+
+def test_an_unreadable_number_refuses_the_apply_and_says_why(opened, panel):
+    select(opened, "region", "glass")
+    steps = opened.menu.edit_titles()
+    panel.widget("material").editor("epsilon").box(0, 1).setText("4,5")
+    panel.widget("apply").click()
+    assert opened.session.scene.region("glass").material == {"epsilon": ((4.0, 0.0), (0.0, 4.0))}
+    assert opened.menu.edit_titles() == steps  # no undo step was recorded
+    assert "not a number" in panel.message()
+    panel.widget("material").editor("epsilon").box(0, 1).setText("1.5")
+    panel.widget("apply").click()
+    assert opened.session.scene.region("glass").material == {"epsilon": ((4.0, 1.5), (1.5, 4.0))}

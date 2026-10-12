@@ -104,6 +104,11 @@ class Run:
             json.dumps({"state": state, "message": message}, indent=2) + "\n"
         )
 
+    def abandon(self, message: str) -> None:
+        """Record a run whose process ended unfinished, e.g. stopped before it wrote a status."""
+        if self.state in ("created", "running"):
+            self._set_state("failed", message)
+
     def execute(
         self,
         scene: Scene,

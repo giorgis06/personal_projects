@@ -115,6 +115,14 @@ def _unsaved_changes_answer(monkeypatch):
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
 
 
+@pytest.fixture(autouse=True)
+def _stop_solve_answer(monkeypatch):
+    """A window closed during a solve would block on a dialog; the default answer is yes."""
+    from femstudio.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "ask_stop_solve", lambda self: True)
+
+
 _exit_status = 0
 
 

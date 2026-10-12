@@ -37,6 +37,10 @@ class TensorEdit(QWidget):
                 self._boxes[row][column].set_value(matrix[row][column])
         self._boxes[1][0].set_value(matrix[0][1])
 
+    def error(self) -> str:
+        """Why the matrix cannot be read, or an empty string."""
+        return next((box.error() for row in self._boxes for box in row if box.error()), "")
+
     def value(self):
         a, b = self._boxes[0][0].value(), self._boxes[0][1].value()
         d = self._boxes[1][1].value()

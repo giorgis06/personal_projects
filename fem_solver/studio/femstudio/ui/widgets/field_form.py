@@ -44,7 +44,10 @@ class FieldForm(QWidget):
         return self._editors[name]
 
     def values(self) -> dict:
-        """The values as the scene stores them: numbers, matrices, expression text."""
+        """The values as the scene stores them: numbers, matrices, expression text.
+
+        Raises ValueError while a number cannot be read; `unreadable()` says which.
+        """
         result = {}
         for spec in self._specs:
             editor = self._editors[spec.name]
@@ -55,6 +58,15 @@ class FieldForm(QWidget):
             else:
                 result[spec.name] = editor.text()
         return result
+
+    def unreadable(self) -> list[str]:
+        """The number fields whose text is not a number, as `Title: reason`."""
+        return [
+            f"{field_title(spec)}: {editor.error()}"
+            for spec in self._specs
+            if isinstance(editor := self._editors[spec.name], (NumberEdit, TensorEdit))
+            and editor.error()
+        ]
 
     def problems(self) -> list[str]:
         """The expression fields that do not parse, as `Title: reason`."""

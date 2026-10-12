@@ -164,6 +164,9 @@ class MainWindow(QMainWindow):
             self.reset_layout()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self.runner.busy and not self.ask_stop_solve():
+            event.ignore()
+            return
         if not self._files.confirm_discard():
             event.ignore()
             return
@@ -192,6 +195,16 @@ class MainWindow(QMainWindow):
         box.setDefaultButton(buttons.Save)
         answer = box.exec()
         return {buttons.Save: "save", buttons.Discard: "discard"}.get(answer, "cancel")
+
+    def ask_stop_solve(self) -> bool:
+        """Ask whether to stop the running solve to close the window."""
+        buttons = QMessageBox.StandardButton
+        box = QMessageBox(self)
+        box.setWindowTitle("Solve running")
+        box.setText("A solve is running. Stop it and close?")
+        box.setStandardButtons(buttons.Yes | buttons.Cancel)
+        box.setDefaultButton(buttons.Cancel)
+        return box.exec() == buttons.Yes
 
     def open_path(self, path: Path) -> bool:
         """Open a project folder, `scene.json`, `.msh` or `.geo`; the reason is shown on failure."""

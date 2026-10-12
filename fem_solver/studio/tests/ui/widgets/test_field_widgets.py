@@ -4,6 +4,7 @@ from femstudio.physics import registry
 from femstudio.ui.widgets.condition_edit import ConditionEdit
 from femstudio.ui.widgets.expression_edit import ExpressionEdit
 from femstudio.ui.widgets.field_form import FieldForm
+from femstudio.ui.widgets.number_edit import NumberEdit
 from femstudio.ui.widgets.tensor_edit import TensorEdit
 
 pytestmark = pytest.mark.ui
@@ -37,6 +38,56 @@ def test_an_unknown_name_is_reported(qtbot):
     edit = ExpressionEdit("z + 1")
     qtbot.addWidget(edit)
     assert "unknown name 'z'" in edit.error()
+
+
+@pytest.mark.parametrize("text", ["4,5", "4.5.", "", "-", "1,000.5", "1e", "abc", "nan"])
+def test_a_number_edit_does_not_guess_at_text_that_is_not_a_number(qtbot, text):
+    edit = NumberEdit(4.5)
+    qtbot.addWidget(edit)
+    edit.setText(text)
+    assert not edit.is_valid()
+    assert edit.error() == edit.toolTip() == "not a number"
+    assert edit.property("state") == "invalid"
+    with pytest.raises(ValueError):
+        edit.value()
+    edit.setText("4.5")
+    assert edit.value() == 4.5
+    assert edit.property("state") == ""
+
+
+def test_a_number_edit_reads_the_same_way_in_any_locale(qtbot):
+    from PySide6.QtCore import QLocale
+    from PySide6.QtGui import QValidator
+
+    previous = QLocale()
+    QLocale.setDefault(QLocale("de_DE"))
+    try:
+        edit = NumberEdit(1.0)
+        qtbot.addWidget(edit)
+        accepted = QValidator.State.Acceptable
+        assert edit.validator().validate("8.85e-12", 0)[0] == accepted
+        assert edit.validator().validate("4,5", 0)[0] != accepted
+    finally:
+        QLocale.setDefault(previous)
+
+
+def test_a_tensor_edit_with_an_unreadable_entry_says_so(qtbot):
+    edit = TensorEdit(((4.0, 0.0), (0.0, 2.0)))
+    qtbot.addWidget(edit)
+    assert edit.error() == ""
+    edit.box(0, 1).setText("1,5")
+    assert edit.error() == "not a number"
+    with pytest.raises(ValueError):
+        edit.value()
+
+
+def test_a_field_form_lists_numbers_that_cannot_be_read(qtbot, problem):
+    form = FieldForm(problem.material_fields, {"epsilon": 4.0})
+    qtbot.addWidget(form)
+    assert form.unreadable() == []
+    form.editor("epsilon").box(1, 1).setText("")
+    (reason,) = form.unreadable()
+    assert reason == "Permittivity [1]: not a number" or reason.endswith(": not a number")
 
 
 def test_a_tensor_edit_keeps_a_scalar_a_scalar(qtbot):

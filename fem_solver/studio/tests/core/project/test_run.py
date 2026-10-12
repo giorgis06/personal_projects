@@ -187,3 +187,17 @@ def test_an_unreadable_status_file_counts_as_failed(project):
     (run.folder / "status.json").write_text('{"state": "succ')
     assert run.state == "failed"
     assert "cannot be read" in run.message
+
+
+def test_a_run_that_ended_unfinished_is_recorded_as_failed(project):
+    run = project.new_run()
+    assert run.state == "created"
+    run.abandon("stopped by the user")
+    assert (run.state, run.message) == ("failed", "stopped by the user")
+
+
+def test_abandoning_leaves_a_finished_run_as_it_was(project):
+    run = project.new_run()
+    execute(run, project.load_scene())
+    run.abandon("stopped by the user")
+    assert run.state == "success"
