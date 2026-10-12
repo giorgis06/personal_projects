@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QDockWidget, QMenuBar
 
 
@@ -11,6 +11,9 @@ class MainMenuBar(QMenuBar):
     quitRequested = Signal()
     resetLayoutRequested = Signal()
     runRequested = Signal()
+    zoomInRequested = Signal()
+    zoomOutRequested = Signal()
+    zoomResetRequested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -25,6 +28,16 @@ class MainMenuBar(QMenuBar):
             edit_menu.addAction(text).setEnabled(False)
 
         self._view = self.addMenu("View")
+        self._view.addSeparator()
+        self._zoom_in = self._view.addAction("Zoom in")
+        self._zoom_in.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])
+        self._zoom_in.triggered.connect(self.zoomInRequested)
+        self._zoom_out = self._view.addAction("Zoom out")
+        self._zoom_out.setShortcut(QKeySequence("Ctrl+-"))
+        self._zoom_out.triggered.connect(self.zoomOutRequested)
+        self._zoom_reset = self._view.addAction("Reset zoom")
+        self._zoom_reset.setShortcut(QKeySequence("Ctrl+0"))
+        self._zoom_reset.triggered.connect(self.zoomResetRequested)
         self._view.addSeparator()
         self._reset = self._view.addAction("Reset layout")
         self._reset.triggered.connect(self.resetLayoutRequested)
@@ -46,6 +59,14 @@ class MainMenuBar(QMenuBar):
 
     def set_run_enabled(self, enabled: bool) -> None:
         self._run_action.setEnabled(enabled)
+
+    def set_zoom_limits(self, can_zoom_in: bool, can_zoom_out: bool) -> None:
+        self._zoom_in.setEnabled(can_zoom_in)
+        self._zoom_out.setEnabled(can_zoom_out)
+
+    def zoom_shortcuts(self) -> dict[str, list[str]]:
+        actions = {"in": self._zoom_in, "out": self._zoom_out, "reset": self._zoom_reset}
+        return {k: [s.toString() for s in a.shortcuts()] for k, a in actions.items()}
 
     def menu_titles(self) -> list[str]:
         return [action.text() for action in self.actions()]

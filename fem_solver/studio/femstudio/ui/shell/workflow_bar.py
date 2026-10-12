@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 
 STEPS = ("Geometry", "Physics", "Mesh", "Solve", "Results")
 
@@ -24,8 +25,9 @@ class WorkflowBar(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(t.PAD, 0, t.PAD, 0)
         layout.setSpacing(0)
+        self._layout = layout
+        self._right = QHBoxLayout()
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
         self._buttons: dict[str, QToolButton] = {}
@@ -40,17 +42,22 @@ class WorkflowBar(QWidget):
             layout.addWidget(button)
         self._buttons[STEPS[0]].setChecked(True)
         layout.addStretch(1)
-        layout.addWidget(QLabel("Backend"))
-        layout.addSpacing(t.PAD)
+        self._right.addWidget(QLabel("Backend"))
         self._backend = QComboBox()
         self._backend.setObjectName("backend")
         self._backend.currentTextChanged.connect(self.backendChanged)
-        layout.addWidget(self._backend)
-        layout.addSpacing(t.PAD)
+        self._right.addWidget(self._backend)
         self._run = QPushButton("Run")
         self._run.setObjectName("run")
         self._run.clicked.connect(self.runRequested)
-        layout.addWidget(self._run)
+        self._right.addWidget(self._run)
+        layout.addLayout(self._right)
+        self.apply_zoom()
+
+    def apply_zoom(self) -> None:
+        pad = zoom.px(t.PAD)
+        self._layout.setContentsMargins(pad, 0, pad, 0)
+        self._right.setSpacing(pad)
 
     def steps(self) -> list[str]:
         return [button.text() for button in self._group.buttons()]

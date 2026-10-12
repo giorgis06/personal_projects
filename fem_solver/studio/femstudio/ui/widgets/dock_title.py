@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QToolButton, QWidget
 
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 
 
 class DockTitle(QWidget):
@@ -18,8 +19,13 @@ class DockTitle(QWidget):
         close.setText("×")
         close.setToolTip("Close")
         close.clicked.connect(dock.close)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(t.PANEL_PAD, t.GAP, t.PAD, t.GAP)
+        self._layout = QHBoxLayout(self)
+        layout = self._layout
+        self.apply_zoom()
         layout.addWidget(label)
         layout.addStretch(1)
         layout.addWidget(close)
+
+    def apply_zoom(self) -> None:
+        pad, gap = zoom.px(t.PANEL_PAD), zoom.px(t.GAP)
+        self._layout.setContentsMargins(pad, gap, zoom.px(t.PAD), gap)

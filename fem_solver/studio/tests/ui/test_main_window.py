@@ -9,8 +9,8 @@ pytestmark = pytest.mark.ui
 
 
 @pytest.fixture
-def window(qtbot):
-    window = MainWindow()
+def window(qtbot, settings):
+    window = MainWindow(settings)
     qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
@@ -281,3 +281,100 @@ def test_a_step_set_from_code_moves_the_panel_and_the_tab(window):
     window.workflow.set_step("Results")
     assert window.properties.current_step() == "Results"
     assert window.viewport.current_title() == "Heatmap"
+
+
+def row_height(window) -> int:
+    tree = window.scene_dock._tree
+    group = tree.topLevelItem(0)
+    return tree.visualItemRect(group.child(0)).height()
+
+
+def test_zoom_in_scales_text_rows_and_paddings_by_the_factor(window):
+    assert window.open_path(EXAMPLE)
+    base_font = window.font().pointSizeF()
+    base_row = row_height(window)
+    base_pad = window.properties._body_layout.contentsMargins().left()
+    assert base_font == t.BASE_PT and base_row == t.ROW_HEIGHT
+
+    window.set_zoom(1.5)
+    assert window.font().pointSizeF() == pytest.approx(base_font * 1.5)
+    assert row_height(window) == pytest.approx(base_row * 1.5, abs=1)
+    assert window.properties._body_layout.contentsMargins().left() == round(base_pad * 1.5)
+    assert window.status.zoom_text() == "Zoom 150 %"
+    assert f"{t.BASE_PT * 1.5:g}pt" in window.styleSheet()
+
+
+def test_zoom_also_scales_dock_widths_swatches_and_value_fonts(window):
+    assert window.open_path(EXAMPLE)
+    window.show()
+    tree = window.scene_dock._tree
+    swatch_before = tree.iconSize().width()
+    indent_before = tree.indentation()
+    window.set_zoom(2.0)
+    assert tree.iconSize().width() == 2 * swatch_before
+    assert tree.indentation() == 2 * indent_before
+    item = tree.topLevelItem(1).child(0)
+    assert item.font(1).pointSizeF() == pytest.approx(2.0 * t.BASE_PT)
+    assert window.scene_dock.swatches("region") == [t.region_colour(0), t.region_colour(1)]
+
+
+def test_reset_restores_the_token_values(window):
+    assert window.open_path(EXAMPLE)
+    window.set_zoom(1.8)
+    window.menu.zoomResetRequested.emit()
+    assert window.font().pointSizeF() == t.BASE_PT
+    assert row_height(window) == t.ROW_HEIGHT
+    assert window.status.zoom_text() == "Zoom 100 %"
+    assert window.properties._body_layout.contentsMargins().left() == t.PANEL_PAD
+
+
+def test_the_limits_hold(window):
+    for _ in range(30):
+        window.menu.zoomInRequested.emit()
+    assert window.status.zoom_text() == "Zoom 200 %"
+    assert not window.menu._zoom_in.isEnabled() and window.menu._zoom_out.isEnabled()
+    for _ in range(40):
+        window.menu.zoomOutRequested.emit()
+    assert window.status.zoom_text() == "Zoom 70 %"
+    assert window.menu._zoom_in.isEnabled() and not window.menu._zoom_out.isEnabled()
+
+
+def test_zoom_steps_by_ten_percent(window):
+    window.menu.zoomInRequested.emit()
+    assert window.status.zoom_text() == "Zoom 110 %"
+    window.menu.zoomOutRequested.emit()
+    window.menu.zoomOutRequested.emit()
+    assert window.status.zoom_text() == "Zoom 90 %"
+
+
+def test_zoom_shortcuts(window):
+    assert window.menu.zoom_shortcuts() == {
+        "in": ["Ctrl++", "Ctrl+="],
+        "out": ["Ctrl+-"],
+        "reset": ["Ctrl+0"],
+    }
+
+
+def test_the_choice_is_remembered_between_sessions(qtbot, settings):
+    first = MainWindow(settings)
+    qtbot.addWidget(first)
+    first.set_zoom(1.4)
+    second = MainWindow(settings)
+    qtbot.addWidget(second)
+    assert second.status.zoom_text() == "Zoom 140 %"
+    assert second.font().pointSizeF() == pytest.approx(t.BASE_PT * 1.4)
+
+
+def test_zoom_leaves_the_selection_and_the_highlight_alone(opened):
+    opened.scene_dock.select("region", "glass")
+    opened.set_zoom(1.3)
+    assert opened.viewport.geometry_view.highlighted() == ("region", "glass")
+    assert opened.properties.panel("Physics").rows() == [("epsilon", "4")]
+
+
+def test_zoomed_widgets_created_later_are_sized_at_the_current_zoom(window, qtbot):
+    window.set_zoom(1.5)
+    assert window.open_path(EXAMPLE)
+    window.scene_dock.select("region", "glass")
+    grid = window.properties.panel("Geometry")._grid
+    assert grid._layout.verticalSpacing() == round(t.GAP * 1.5)

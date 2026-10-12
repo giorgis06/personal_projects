@@ -46,3 +46,21 @@ if not _can_import_pyvista():  # a machine without VTK's libraries: skip, loudly
         "pyvista cannot be imported here; the window tests are not collected", stacklevel=1
     )
     collect_ignore_glob = ["test_*.py", "*/test_*.py"]
+
+
+@pytest.fixture(autouse=True)
+def _zoom_at_one_hundred_percent():
+    """The zoom factor is process-wide state; every test starts and ends at 100 %."""
+    from femstudio.ui.theme import zoom
+
+    zoom.set_current(1.0)
+    yield
+    zoom.set_current(1.0)
+
+
+@pytest.fixture
+def settings(tmp_path):
+    """Settings in a temporary file, so a test never touches the real stored choice."""
+    from PySide6.QtCore import QSettings
+
+    return QSettings(str(tmp_path / "femstudio.ini"), QSettings.Format.IniFormat)

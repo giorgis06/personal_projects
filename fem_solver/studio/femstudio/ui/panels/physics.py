@@ -5,6 +5,7 @@ from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME
 from femstudio.physics import registry
 from femstudio.physics.base import FieldSpec, ProblemType
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 from femstudio.ui.widgets.readouts import MatrixReadout, PairsGrid, Section, format_value
 
 
@@ -42,7 +43,7 @@ class PhysicsPanel(QWidget):
         self._layout.insertWidget(0, self._body)
         body = QVBoxLayout(self._body)
         body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(t.SECTION_GAP)
+        body.setSpacing(zoom.px(t.SECTION_GAP))
         self._rows = []
         problem = _problem_type(document)
         if problem is None:

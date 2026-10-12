@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
 
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 
 
 def label(text: str, role: str) -> QLabel:
@@ -18,10 +19,13 @@ class PairsGrid(QWidget):
         super().__init__()
         self._layout = QGridLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setHorizontalSpacing(t.SECTION_GAP)
-        self._layout.setVerticalSpacing(t.GAP)
+        self.apply_zoom()
         self._layout.setColumnStretch(1, 1)
         self._rows: list[tuple[str, str]] = []
+
+    def apply_zoom(self) -> None:
+        self._layout.setHorizontalSpacing(zoom.px(t.SECTION_GAP))
+        self._layout.setVerticalSpacing(zoom.px(t.GAP))
 
     @property
     def rows(self) -> list[tuple[str, str]]:
@@ -46,12 +50,16 @@ class MatrixReadout(QWidget):
 
     def __init__(self, matrix) -> None:
         super().__init__()
-        grid = QGridLayout(self)
+        self._grid = QGridLayout(self)
+        grid = self._grid
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(t.GAP)
+        self.apply_zoom()
         for row, values in enumerate(matrix):
             for column, value in enumerate(values):
                 grid.addWidget(label(f"{value:g}", "field"), row, column)
+
+    def apply_zoom(self) -> None:
+        self._grid.setSpacing(zoom.px(t.GAP))
 
 
 class Section(QWidget):
@@ -59,15 +67,19 @@ class Section(QWidget):
 
     def __init__(self, heading: str, body: QWidget) -> None:
         super().__init__()
-        layout = QVBoxLayout(self)
+        self._layout = QVBoxLayout(self)
+        layout = self._layout
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(t.GAP)
+        self.apply_zoom()
         self._heading = label(heading, "heading")
         layout.addWidget(self._heading)
         layout.addWidget(body)
 
     def set_heading(self, text: str) -> None:
         self._heading.setText(text)
+
+    def apply_zoom(self) -> None:
+        self._layout.setSpacing(zoom.px(t.GAP))
 
 
 def format_value(value) -> str:

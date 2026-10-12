@@ -14,6 +14,7 @@ from femstudio.core.project.document import Document
 from femstudio.core.scene.validation import Finding, validate
 from femstudio.physics import registry
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 
 
 def collect_findings(document: Document | None) -> list[Finding]:
@@ -60,7 +61,7 @@ class FindingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         buttons.clicked.connect(self.accept)
         layout.addWidget(buttons)
-        self.resize(t.DIALOG_WIDTH, t.DIALOG_HEIGHT)
+        self.resize(zoom.px(t.DIALOG_WIDTH), zoom.px(t.DIALOG_HEIGHT))
 
     def lines(self) -> list[str]:
         return [self._list.item(i).text() for i in range(self._list.count())]
@@ -81,6 +82,8 @@ class StatusPanel(QStatusBar):
         self._size = QLabel()
         for widget in (self._validation, self._nodes, self._triangles, self._size):
             self.addWidget(widget)
+        self._zoom = QLabel()
+        self.addPermanentWidget(self._zoom)
         self._findings: list[Finding] = []
         self.set_document(None)
 
@@ -101,6 +104,12 @@ class StatusPanel(QStatusBar):
         self._triangles.setText(f"{stats.n_triangles:,} triangles".replace(",", " "))
         size = document.size if document.size is not None else stats.max_edge
         self._size.setText(f"h = {size:.3g}")
+
+    def set_zoom(self, factor: float) -> None:
+        self._zoom.setText(f"Zoom {zoom.percent(factor)}")
+
+    def zoom_text(self) -> str:
+        return self._zoom.text()
 
     def findings(self) -> list[Finding]:
         return list(self._findings)

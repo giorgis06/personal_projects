@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import QDockWidget, QTreeWidget, QTreeWidgetItem
 
@@ -8,6 +8,7 @@ from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, Bounda
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
 from femstudio.physics.base import ProblemType
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 from femstudio.ui.theme.stylesheet import resolve_fonts
 from femstudio.ui.widgets.dock_title import DockTitle
 from femstudio.ui.widgets.readouts import format_value
@@ -15,6 +16,7 @@ from femstudio.ui.widgets.readouts import format_value
 GROUPS = (("shape", "Shapes"), ("region", "Regions"), ("boundary", "Boundaries"), ("run", "Runs"))
 KIND_ROLE = Qt.ItemDataRole.UserRole
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1
+COLOUR_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 def shape_summary(shape) -> str:
@@ -62,7 +64,8 @@ def run_summary(run) -> str:
 
 
 def _swatch(colour: str) -> QIcon:
-    pixmap = QPixmap(t.SWATCH, t.SWATCH)
+    size = zoom.px(t.SWATCH)
+    pixmap = QPixmap(size, size)
     pixmap.fill(QColor(colour))
     return QIcon(pixmap)
 
@@ -76,13 +79,12 @@ class SceneDock(QDockWidget):
         super().__init__("Scene")
         self.setObjectName("sceneDock")
         self.setTitleBarWidget(DockTitle("Scene", self))
-        self._mono = resolve_fonts()[1]
+        self._mono = resolve_fonts(zoom.current())[1]
         self._tree = QTreeWidget()
         self._tree.setObjectName("sceneTree")
         self._tree.setColumnCount(2)
         self._tree.setHeaderHidden(True)
         self._tree.setRootIsDecorated(False)
-        self._tree.setIndentation(t.TREE_INDENT)
         self._tree.header().setStretchLastSection(False)
         self._tree.header().setSectionResizeMode(0, self._tree.header().ResizeMode.Stretch)
         self._tree.header().setSectionResizeMode(1, self._tree.header().ResizeMode.ResizeToContents)
@@ -90,6 +92,21 @@ class SceneDock(QDockWidget):
         self.setWidget(self._tree)
         self._groups: dict[str, QTreeWidgetItem] = {}
         self._build_groups()
+        self.apply_zoom()
+
+    def apply_zoom(self) -> None:
+        """Resize indentation, swatches and the value font to the current zoom."""
+        self._tree.setIndentation(zoom.px(t.TREE_INDENT))
+        size = zoom.px(t.SWATCH)
+        self._tree.setIconSize(QSize(size, size))
+        self._mono = resolve_fonts(zoom.current())[1]
+        for group in self._groups.values():
+            for index in range(group.childCount()):
+                item = group.child(index)
+                item.setFont(1, self._mono)
+                colour = item.data(0, COLOUR_ROLE)
+                if colour is not None:
+                    item.setIcon(0, _swatch(colour))
 
     def _build_groups(self) -> None:
         self._tree.clear()
@@ -108,6 +125,7 @@ class SceneDock(QDockWidget):
         item = QTreeWidgetItem([name, summary])
         item.setData(0, KIND_ROLE, kind)
         item.setData(0, NAME_ROLE, name)
+        item.setData(0, COLOUR_ROLE, colour)
         item.setFont(1, self._mono)
         item.setForeground(1, QColor(t.MUTED))
         item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -163,10 +181,11 @@ class SceneDock(QDockWidget):
     def swatches(self, kind: str) -> list[str]:
         """The colour of each row's swatch in a group, as a hex string."""
         group = self._groups[kind]
+        size = zoom.px(t.SWATCH)
         colours = []
         for i in range(group.childCount()):
-            image = group.child(i).icon(0).pixmap(t.SWATCH, t.SWATCH).toImage()
-            colours.append(image.pixelColor(t.SWATCH // 2, t.SWATCH // 2).name())
+            image = group.child(i).icon(0).pixmap(size, size).toImage()
+            colours.append(image.pixelColor(size // 2, size // 2).name())
         return colours
 
     def select(self, kind: str, name: str) -> None:

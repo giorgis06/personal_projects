@@ -66,7 +66,15 @@ def test_menu_bar_has_the_planned_menus_and_lists_every_dock(qtbot):
         qtbot.addWidget(dock)
         docks.append(dock)
     menu.set_docks(docks)
-    assert menu.view_titles() == ["Scene", "Properties", "Log", "Reset layout"]
+    assert menu.view_titles() == [
+        "Scene",
+        "Properties",
+        "Log",
+        "Zoom in",
+        "Zoom out",
+        "Reset zoom",
+        "Reset layout",
+    ]
 
 
 @pytest.mark.ui

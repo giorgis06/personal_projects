@@ -8,6 +8,7 @@ from femstudio.ui.panels.physics import PhysicsPanel
 from femstudio.ui.panels.results import ResultsPanel
 from femstudio.ui.panels.solve import SolvePanel
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 from femstudio.ui.widgets.dock_title import DockTitle
 
 
@@ -30,9 +31,9 @@ class PropertiesDock(QDockWidget):
             self._stack.addWidget(panel)
         body = QWidget()
         body.setObjectName("propertiesBody")
-        layout = QVBoxLayout(body)
-        layout.setContentsMargins(t.PANEL_PAD, t.PANEL_PAD, t.PANEL_PAD, t.PANEL_PAD)
-        layout.addWidget(self._stack)
+        self._body_layout = QVBoxLayout(body)
+        self._body_layout.addWidget(self._stack)
+        self.apply_zoom()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -42,6 +43,10 @@ class PropertiesDock(QDockWidget):
         self.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
         self._document: Document | None = None
         self._selection = ("", "")
+
+    def apply_zoom(self) -> None:
+        pad = zoom.px(t.PANEL_PAD)
+        self._body_layout.setContentsMargins(pad, pad, pad, pad)
 
     def panel(self, step: str) -> QWidget:
         return self._panels[step]

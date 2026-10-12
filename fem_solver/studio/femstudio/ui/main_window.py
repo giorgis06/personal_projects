@@ -2,9 +2,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QCloseEvent, QShowEvent
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QToolBar
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QToolBar,
+    QWidget,
+)
 
 from femstudio.backends import registry as backends
 from femstudio.core.project.document import Document, open_document
@@ -17,6 +24,7 @@ from femstudio.ui.shell.status_bar import StatusPanel
 from femstudio.ui.shell.viewport import TAB_FOR_STEP, Viewport
 from femstudio.ui.shell.workflow_bar import WorkflowBar
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.theme import zoom
 from femstudio.ui.theme.stylesheet import build_stylesheet, resolve_fonts
 
 TITLE = "FEM Studio"
@@ -26,13 +34,12 @@ SOLVING_LATER = "Solving from the window arrives with the solve panel."
 class MainWindow(QMainWindow):
     """Assembles the regions and connects their signals."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
-        sans, mono = resolve_fonts()
-        self.setFont(sans)
-        self.setStyleSheet(build_stylesheet(sans.family(), mono.family()))
+        self._settings = settings or QSettings("femstudio", "FEM Studio")
+        zoom.set_current(zoom.load(self._settings))
         self.setWindowTitle(TITLE)
-        self.resize(t.WINDOW_WIDTH, t.WINDOW_HEIGHT)
+        self.resize(zoom.px(t.WINDOW_WIDTH), zoom.px(t.WINDOW_HEIGHT))
         self._workdir = tempfile.TemporaryDirectory(prefix="femstudio-")
         self._document: Document | None = None
         self._laid_out = False
@@ -63,6 +70,7 @@ class MainWindow(QMainWindow):
         self.properties.set_backend(self.workflow.backend())
         self._connect()
         self.reset_layout()
+        self._apply_zoom()
         self._on_step(self.workflow.step())
 
     def _connect(self) -> None:
@@ -73,6 +81,9 @@ class MainWindow(QMainWindow):
         self.menu.openFolderRequested.connect(self._choose_folder)
         self.menu.quitRequested.connect(self.close)
         self.menu.resetLayoutRequested.connect(self.reset_layout)
+        self.menu.zoomInRequested.connect(lambda: self.set_zoom(zoom.zoomed_in(zoom.current())))
+        self.menu.zoomOutRequested.connect(lambda: self.set_zoom(zoom.zoomed_out(zoom.current())))
+        self.menu.zoomResetRequested.connect(lambda: self.set_zoom(1.0))
 
     def _on_step(self, step: str) -> None:
         self.properties.show_step(step)
@@ -81,6 +92,33 @@ class MainWindow(QMainWindow):
     def _on_selection(self, kind: str, name: str) -> None:
         self.properties.set_selection(kind, name)
         self.viewport.highlight(kind, name)
+
+    def set_zoom(self, factor: float) -> None:
+        """Scale the whole interface and remember the choice; the viewport drawing is not scaled."""
+        zoom.set_current(factor)
+        zoom.save(self._settings, zoom.current())
+        self._apply_zoom()
+
+    def _apply_zoom(self) -> None:
+        factor = zoom.current()
+        sans, mono = resolve_fonts(factor)
+        self.setFont(sans)
+        self.setStyleSheet(build_stylesheet(sans.family(), mono.family(), factor))
+        for widget in self.findChildren(QWidget):
+            hook = getattr(widget, "apply_zoom", None)
+            if callable(hook):
+                hook()
+        self._size_docks()
+        self.status.set_zoom(factor)
+        self.menu.set_zoom_limits(factor < zoom.MAXIMUM, factor > zoom.MINIMUM)
+
+    def _size_docks(self) -> None:
+        self.resizeDocks(
+            [self.scene_dock, self.properties],
+            [zoom.px(t.SCENE_DOCK_WIDTH), zoom.px(t.PROPERTIES_DOCK_WIDTH)],
+            Qt.Orientation.Horizontal,
+        )
+        self.resizeDocks([self.log], [zoom.px(t.LOG_DOCK_HEIGHT)], Qt.Orientation.Vertical)
 
     def reset_layout(self) -> None:
         """The default arrangement: Scene left, Properties right, Log below."""
@@ -93,12 +131,7 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             self.addDockWidget(area, dock)
             dock.show()
-        self.resizeDocks(
-            [self.scene_dock, self.properties],
-            [t.SCENE_DOCK_WIDTH, t.PROPERTIES_DOCK_WIDTH],
-            Qt.Orientation.Horizontal,
-        )
-        self.resizeDocks([self.log], [t.LOG_DOCK_HEIGHT], Qt.Orientation.Vertical)
+        self._size_docks()
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
