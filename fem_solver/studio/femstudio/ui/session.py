@@ -1,18 +1,46 @@
+import copy
+import shutil
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
 from PySide6.QtCore import QObject, Signal
 
-from femstudio.core.project.document import Document, document_from_scene, open_document
+from femstudio.core.project.document import (
+    Document,
+    DocumentError,
+    check_mesh_size,
+    document_from_scene,
+    open_document,
+)
+from femstudio.core.project.project import Project
+from femstudio.core.project.run import Run
 from femstudio.core.scene.editing import EditError
 from femstudio.core.scene.history import History
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import save_scene
+from femstudio.physics import registry as physics
+from femstudio.physics.base import SolverSettings
 
 T = TypeVar("T")
 UNTITLED = Path("untitled.scene.json")
+SCRATCH_PROJECT = "runs-project"
+
+
+class RunRefused(ValueError):
+    """There is nothing to solve yet; the message says why."""
+
+
+@dataclass(frozen=True)
+class RunPlan:
+    """Everything a solve needs, fixed when Run is pressed: later edits do not reach it."""
+
+    run: Run
+    scene: Scene
+    size: float
+    settings: SolverSettings
 
 
 class Session(QObject):
@@ -23,6 +51,8 @@ class Session(QObject):
     dirtyChanged = Signal(bool)
     selectionRequested = Signal(str, str)
     editRefused = Signal(str)
+    runsChanged = Signal()
+    settingsChanged = Signal()
     errorRaised = Signal(str, str)
     logLine = Signal(str)
 
@@ -31,6 +61,9 @@ class Session(QObject):
         self._workdir = tempfile.TemporaryDirectory(prefix="femstudio-")
         self._document: Document | None = None
         self._dirty = False
+        self._mesh_size: float | None = None
+        self._settings = SolverSettings()
+        self._scratch: Project | None = None
         self.history = History()
 
     def close(self) -> None:
@@ -47,6 +80,73 @@ class Session(QObject):
     @property
     def dirty(self) -> bool:
         return self._dirty
+
+    @property
+    def mesh_size(self) -> float | None:
+        """The element size chosen, or None for the default one."""
+        return self._mesh_size
+
+    @property
+    def settings(self) -> SolverSettings:
+        return self._settings
+
+    def set_settings(self, settings: SolverSettings) -> None:
+        self._settings = settings
+        self.settingsChanged.emit()
+
+    def set_mesh_size(self, size: float | None) -> bool:
+        """Re-mesh the preview at `size` (None: the default). Not an edit: it is not undoable."""
+        scene = self.scene
+        if scene is None:
+            return False
+        if size is not None:
+            try:
+                check_mesh_size(scene, size)
+            except DocumentError as error:
+                self.editRefused.emit(str(error))
+                return False
+        self._mesh_size = size
+        self.logLine.emit(f"[mesh] element size {'default' if size is None else f'{size:g}'}")
+        self._remesh(scene)
+        return True
+
+    def runs(self) -> list[Run]:
+        """The runs of the open project, or of this session's scratch project."""
+        document = self._document
+        if document is not None and document.project is not None:
+            return document.project.runs()
+        return self._scratch.runs() if self._scratch is not None else []
+
+    def plan_run(self) -> RunPlan:
+        """Fix the inputs of a solve and make its run folder.
+
+        A scene opened outside a project keeps its runs in the session's temporary folder, which
+        goes when the window closes.
+        """
+        document = self._document
+        if document is None or document.scene is None:
+            raise RunRefused("there is no scene to solve")
+        if document.mesh is None or document.size is None:
+            raise RunRefused(f"the scene has no mesh: {document.mesh_error}")
+        scene = copy.deepcopy(document.scene)
+        try:
+            physics.get(scene.problem_type)
+        except KeyError as error:
+            raise RunRefused(str(error.args[0])) from None
+        project = document.project
+        if project is None:
+            if self._scratch is None:
+                folder = Path(self._workdir.name) / SCRATCH_PROJECT
+                self._scratch = Project.create(folder, scene)
+            project = self._scratch
+        run = project.new_run()
+        save_scene(scene, run.scene_path)
+        return RunPlan(run, scene, document.size, self._settings)
+
+    def _reset_scratch(self) -> None:
+        if self._scratch is not None:
+            shutil.rmtree(self._scratch.folder, ignore_errors=True)
+            self._scratch = None
 
     def _set_dirty(self, dirty: bool) -> None:
         if dirty != self._dirty:
@@ -67,10 +167,7 @@ class Session(QObject):
             self.logLine.emit(f"[error] {error}")
             self.errorRaised.emit(f"Cannot open {path.name}", str(error))
             return False
-        self.history.clear()
-        self.historyChanged.emit()
-        self._set_dirty(False)
-        self._show(document, True)
+        self._started(document)
         return True
 
     def new_scene(self, problem_type: str) -> None:
@@ -78,21 +175,31 @@ class Session(QObject):
         document = document_from_scene(
             Scene(problem_type), UNTITLED, Path(self._workdir.name), None, self.logLine.emit
         )
+        self._started(document)
+
+    def _started(self, document: Document) -> None:
+        """A different document replaces what was open: its history, size and runs go."""
+        self._mesh_size = None
+        self._reset_scratch()
         self.history.clear()
         self.historyChanged.emit()
         self._set_dirty(False)
         self._show(document, True)
+        self.runsChanged.emit()
 
-    def edit(self, label: str, operation: Callable[[Scene], T]) -> T | None:
+    def edit(self, label: str, operation: Callable[[Scene], T], geometry: bool = True) -> T | None:
         """Apply `operation` to the scene as one undoable step, then re-mesh for the preview.
 
         A refused edit (EditError) changes nothing and is reported through `editRefused`.
+        `geometry=False` says the edit only changes physics values, so the mesh is kept unless
+        there is none or the outer edges gain or lose their default condition.
         """
         scene = self.scene
         if scene is None:
             self.editRefused.emit("there is no scene to edit")
             return None
         self.history.record(scene, label)
+        had_default = scene.default_boundary is not None
         try:
             result = operation(scene)
         except EditError as error:
@@ -106,7 +213,11 @@ class Session(QObject):
         self.logLine.emit(f"[edit] {label}")
         self._set_dirty(True)
         self.historyChanged.emit()
-        self._remesh(scene)
+        unchanged = (scene.default_boundary is not None) == had_default
+        if geometry or self._document.mesh is None or not unchanged:
+            self._remesh(scene)
+        else:
+            self._show(self._document, False)
         return result
 
     def _remesh(self, scene: Scene) -> None:
@@ -115,6 +226,7 @@ class Session(QObject):
             self._document.source,
             Path(self._workdir.name),
             self._document.project,
+            size=self._mesh_size,
         )
         self._show(document, False)
 

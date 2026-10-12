@@ -82,6 +82,8 @@ class StatusPanel(QStatusBar):
         self._size = QLabel()
         for widget in (self._validation, self._nodes, self._triangles, self._size):
             self.addWidget(widget)
+        self._run = QLabel()
+        self.addPermanentWidget(self._run)
         self._zoom = QLabel()
         self.addPermanentWidget(self._zoom)
         self._findings: list[Finding] = []
@@ -104,6 +106,12 @@ class StatusPanel(QStatusBar):
         self._triangles.setText(f"{stats.n_triangles:,} triangles".replace(",", " "))
         size = document.size if document.size is not None else stats.max_edge
         self._size.setText(f"h = {size:.3g}")
+
+    def set_run_state(self, text: str) -> None:
+        self._run.setText(text)
+
+    def run_text(self) -> str:
+        return self._run.text()
 
     def set_zoom(self, factor: float) -> None:
         self._zoom.setText(f"Zoom {zoom.percent(factor)}")

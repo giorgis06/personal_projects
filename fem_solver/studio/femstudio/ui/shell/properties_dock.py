@@ -22,9 +22,9 @@ class PropertiesDock(QDockWidget):
         self.setTitleBarWidget(DockTitle("Properties", self))
         self._panels = {
             "Geometry": GeometryPanel(session),
-            "Physics": PhysicsPanel(),
-            "Mesh": MeshPanel(),
-            "Solve": SolvePanel(),
+            "Physics": PhysicsPanel(session),
+            "Mesh": MeshPanel(session),
+            "Solve": SolvePanel(session),
             "Results": ResultsPanel(),
         }
         self._stack = QStackedWidget()

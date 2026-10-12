@@ -1,4 +1,6 @@
 import copy
+import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,42 @@ def capacitor_document(tmp_path_factory):
 @pytest.fixture
 def document(capacitor_document):
     return copy.deepcopy(capacitor_document)
+
+
+@pytest.fixture
+def window(qtbot, settings):
+    """A shown window, closed here rather than by qtbot.
+
+    qtbot closes its widgets before fixtures are torn down, when a test may still have the
+    unsaved-changes answer patched to "cancel": the window would then stay open and its 3D
+    widget would outlive its GL context, aborting the process a few tests later.
+    """
+    from femstudio.ui.main_window import MainWindow
+
+    window = MainWindow(settings)
+    window.show()
+    qtbot.waitExposed(window)
+    yield window
+    window.session._set_dirty(False)
+    window.close()
+    window.deleteLater()
+
+
+@pytest.fixture
+def opened(window):
+    assert window.open_path(EXAMPLE)
+    return window
+
+
+@pytest.fixture
+def session():
+    """A Session with the capacitor open; its temporary folder goes at the end of the test."""
+    from femstudio.ui.session import Session
+
+    opened = Session()
+    assert opened.open_path(EXAMPLE)
+    yield opened
+    opened.close()
 
 
 @pytest.fixture
@@ -75,3 +113,24 @@ def _unsaved_changes_answer(monkeypatch):
     from femstudio.ui.main_window import MainWindow
 
     monkeypatch.setattr(MainWindow, "ask_unsaved", lambda self: "discard")
+
+
+_exit_status = 0
+
+
+def pytest_sessionfinish(session, exitstatus):
+    global _exit_status
+    _exit_status = int(exitstatus)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_unconfigure(config):
+    """End the process once the report is printed.
+
+    After many windows VTK's own teardown aborts inside the interpreter's final garbage
+    collection ("free(): invalid pointer"), turning a passing run into a core dump. Nothing is
+    left to write at this point, so the process leaves without running that teardown.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_status)

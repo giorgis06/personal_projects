@@ -144,13 +144,19 @@ class SceneDock(QDockWidget):
         document: Document | None,
         problem_type: ProblemType | None,
         keep_selection: bool = False,
+        runs=None,
     ) -> None:
-        """Rebuild the tree; `keep_selection` re-selects the selected row if it is still there."""
+        """Rebuild the tree; `keep_selection` re-selects the selected row if it is still there.
+
+        `runs` are the runs to list when the document is not a project (a scratch project's).
+        """
         previous = self.selected() if keep_selection else ("", "")
         self._tree.blockSignals(True)
         self._build_groups()
         if document is not None:
             self._fill(document, problem_type)
+            if document.project is None and runs:
+                self._fill_runs(runs)
         self._tree.blockSignals(False)
         if previous[0]:
             try:
@@ -186,8 +192,25 @@ class SceneDock(QDockWidget):
             for index, (name, ids) in enumerate(document.mesh.boundaries.items()):
                 self._add("boundary", name, f"{len(ids)} edges", t.boundary_colour(index))
         if document.project is not None:
-            for run in reversed(document.project.runs()):
-                self._add("run", f"run {run.number}", run_summary(run))
+            self._fill_runs(document.project.runs())
+
+    def _fill_runs(self, runs) -> None:
+        for run in reversed(runs):
+            self._add("run", f"run {run.number}", run_summary(run))
+
+    def set_runs(self, runs) -> None:
+        """Replace the Runs group, leaving the rest of the tree and the selection alone."""
+        selected = self.selected()
+        group = self._groups["run"]
+        self._tree.blockSignals(True)
+        group.takeChildren()
+        self._fill_runs(runs)
+        self._tree.blockSignals(False)
+        if selected[0] == "run":
+            try:
+                self.select(*selected)
+            except KeyError:
+                self.selectionChanged.emit("", "")
 
     def rows(self) -> dict[str, list[tuple[str, str]]]:
         """For each kind, the (name, summary) rows now shown."""

@@ -71,6 +71,7 @@ fem_solver/studio/
         validation.py        checks listed under "Validation"
         editing.py           edit operations that keep names consistent; refused edits change nothing
         history.py           undo and redo by scene snapshots, one step per committed edit
+        physics_editing.py   set materials, conditions, source and default condition (M7)
       expressions/
         grammar.py           the allowed expression language
         evaluate.py          parse, validate, evaluate on numpy arrays
@@ -89,6 +90,7 @@ fem_solver/studio/
       project/
         project.py           a folder on disk holding one scene and its runs
         run.py               one solve: inputs, outputs, log, status
+        run_job.py           solve one run folder from the command line; the window starts it (M7)
         document.py          what is open: a mesh, with the scene and project it came from
     physics/
       base.py                ProblemType interface
@@ -104,6 +106,7 @@ fem_solver/studio/
     ui/
       main_window.py         assembles the regions below; holds no logic of its own
       session.py             what is open: edits, undo, saving, re-meshing for the preview
+      runner.py              one solve at a time as a process; why Run is unavailable (M7)
       theme/
         tokens.py            every colour, font and spacing value, by name
         stylesheet.py        builds the Qt stylesheet from the tokens
@@ -118,8 +121,9 @@ fem_solver/studio/
         viewport.py          the tabbed centre area that hosts the views
       panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock; geometry edits the scene
       views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
-      widgets/               dock_title, readouts (M5); expression_edit, tensor_edit (M7)
-      workers/               solve_worker (keeps the window responsive)
+      widgets/               dock_title, readouts (M5); expression_edit, number_edit, tensor_edit,
+                             field_form, condition_edit (M7)
+      workers/               solve_worker: the QProcess that runs run_job (M7)
   tests/                     mirrors femstudio/ folder by folder
   examples/                  capacitor.py and capacitor.scene.json
 ```
@@ -327,6 +331,6 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M4 | done | Merged (#20). Run folders hold `scene.json`; stopping a solve is raising from `on_log`. |
 | M5 | done | Merged (#21). Interface zoom (owner request) is in; see Window design. |
 | M6 | in review | Edits are committed with Apply (one undo step each); every edit re-meshes on the window's thread for the preview. A new region gets the problem type's default material; its conditions and values come with the Physics panel (M7). |
-| M7 | not started | |
+| M7 | in review | A solve runs as a separate process (`core/project/run_job.py`): gmsh is not thread-safe, and Stop is a SIGTERM that works when the solver is silent. Default backend is `mock` until the C++ CLI exists. Mesh size and solver settings are session settings, not part of `scene.json`. Runs of a scene outside a project live in the session's temporary folder. Headless Qt platforms draw into an off-screen plotter, not the GL widget (it leaks GL threads per window and aborted the ui suite). |
 | M8 | not started | |
 | M9 | not started | |

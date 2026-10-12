@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
 from femstudio.backends import registry as backends
 from femstudio.core.project.document import Document
 from femstudio.physics import registry as physics
-from femstudio.ui.session import Session
+from femstudio.ui.runner import Runner, why_not_runnable
+from femstudio.ui.session import RunRefused, Session
 from femstudio.ui.shell.file_actions import FileActions
 from femstudio.ui.shell.log_dock import LogDock
 from femstudio.ui.shell.menu_bar import MainMenuBar
@@ -26,7 +27,7 @@ from femstudio.ui.theme import stylesheet, zoom
 from femstudio.ui.theme import tokens as t
 
 TITLE = "FEM Studio"
-SOLVING_LATER = "Solving from the window arrives with the solve panel."
+DEFAULT_BACKEND = "mock"  # until the C++ solver has its command-line interface
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         self.resize(zoom.px(t.WINDOW_WIDTH), zoom.px(t.WINDOW_HEIGHT))
         self._laid_out = False
         self.session = Session()
+        self.runner = Runner()
         self._files = FileActions(self, self.session)
 
         self.menu = MainMenuBar()
@@ -63,10 +65,10 @@ class MainWindow(QMainWindow):
         self.menu.set_docks([self.scene_dock, self.properties, self.log])
 
         self.workflow.set_backends([b.name for b in backends.available()])
-        self.workflow.set_run_enabled(False, SOLVING_LATER)
-        self.menu.set_run_enabled(False)
+        self.workflow.set_backend(DEFAULT_BACKEND)
         self.properties.set_backend(self.workflow.backend())
         self._connect()
+        self._update_run_enabled()
         self.reset_layout()
         self._apply_zoom()
         self._on_step(self.workflow.step())
@@ -74,6 +76,8 @@ class MainWindow(QMainWindow):
     def _connect(self) -> None:
         self.workflow.stepChanged.connect(self._on_step)
         self.workflow.backendChanged.connect(self.properties.set_backend)
+        self.workflow.backendChanged.connect(lambda _name: self._update_run_enabled())
+        self.workflow.runRequested.connect(self.start_or_stop)
         self.scene_dock.selectionChanged.connect(self._on_selection)
 
         menu = self.menu
@@ -85,6 +89,7 @@ class MainWindow(QMainWindow):
         menu.undoRequested.connect(self.session.undo)
         menu.redoRequested.connect(self.session.redo)
         menu.quitRequested.connect(self.close)
+        menu.runRequested.connect(self.start_or_stop)
         menu.resetLayoutRequested.connect(self.reset_layout)
         menu.zoomInRequested.connect(lambda: self.set_zoom(zoom.zoomed_in(zoom.current())))
         menu.zoomOutRequested.connect(lambda: self.set_zoom(zoom.zoomed_out(zoom.current())))
@@ -97,6 +102,12 @@ class MainWindow(QMainWindow):
         session.selectionRequested.connect(self._select)
         session.logLine.connect(self.log.append_line)
         session.errorRaised.connect(self.report_error)
+        session.runsChanged.connect(self._show_runs)
+
+        runner = self.runner
+        runner.started.connect(self._on_run_started)
+        runner.finished.connect(self._on_run_finished)
+        runner.logLine.connect(self.log.append_line)
 
     def _on_step(self, step: str) -> None:
         self.properties.show_step(step)
@@ -156,6 +167,11 @@ class MainWindow(QMainWindow):
         if not self._files.confirm_discard():
             event.ignore()
             return
+        self.runner.stop()
+        if not self.runner.wait():
+            self.log.append_line("[run] the solver is still running; close again when it ends")
+            event.ignore()
+            return
         self.viewport.close_views()
         self.session.close()
         super().closeEvent(event)
@@ -199,11 +215,14 @@ class MainWindow(QMainWindow):
             except KeyError as error:
                 self.log.append_line(f"[warning] {error.args[0]}")
         keep = not reset_view
-        self.scene_dock.set_document(document, problem_type, keep_selection=keep)
+        self.scene_dock.set_document(
+            document, problem_type, keep_selection=keep, runs=self.session.runs()
+        )
         self.properties.set_document(document, keep_selection=keep)
         self.viewport.set_document(document, reset_view)
         self.status.set_document(document)
         self.menu.set_saveable(document is not None and document.scene is not None)
+        self._update_run_enabled()
         self._update_title()
         if document is not None and reset_view:
             if document.mesh is None:
@@ -211,6 +230,65 @@ class MainWindow(QMainWindow):
             else:
                 mesh = document.mesh
                 self.log.append_line(f"[open] {mesh.n_nodes} nodes, {mesh.n_triangles} triangles")
+
+    # -- solving
+
+    def _backend(self):
+        try:
+            return backends.get(self.workflow.backend())
+        except KeyError:
+            return None
+
+    def _update_run_enabled(self) -> None:
+        if self.runner.busy:
+            self.workflow.set_run_enabled(True, "Stop the solve.")
+            self.menu.set_run_enabled(True)
+            return
+        reason = why_not_runnable(self.session.document, self.status.findings(), self._backend())
+        self.workflow.set_run_enabled(reason is None, reason or "Solve the scene.")
+        self.menu.set_run_enabled(reason is None)
+
+    def start_or_stop(self) -> None:
+        """Run the scene on the chosen backend, or stop the solve that is running."""
+        if self.runner.busy:
+            self.runner.stop()
+            return
+        backend = self._backend()
+        reason = why_not_runnable(self.session.document, self.status.findings(), backend)
+        if reason is not None:
+            self.log.append_line(f"[run] not started: {reason}")
+            return
+        try:
+            plan = self.session.plan_run()
+        except (RunRefused, OSError) as error:
+            self.log.append_line(f"[run] not started: {error}")
+            return
+        self.runner.start(plan, backend)
+
+    def _on_run_started(self, number: int) -> None:
+        self.workflow.set_running(True)
+        self.menu.set_running(True)
+        self.status.set_run_state(f"Solving run {number}...")
+        self.log.append_line(f"[run] run {number} started on {self.workflow.backend()}")
+        self._show_runs()
+        self._update_run_enabled()
+
+    def is_solving(self) -> bool:
+        return self.runner.busy
+
+    def _on_run_finished(self, number: int, state: str, message: str) -> None:
+        self.workflow.set_running(False)
+        self.menu.set_running(False)
+        self.status.set_run_state(f"Run {number}: {state}")
+        suffix = f": {message}" if message else ""
+        self.log.append_line(f"[run] run {number} {state}{suffix}")
+        self._show_runs()
+        self._update_run_enabled()
+        if state == "failed":
+            self.report_error(f"Run {number} failed", message)
+
+    def _show_runs(self) -> None:
+        self.scene_dock.set_runs(self.session.runs())
 
     def _on_history(self) -> None:
         history = self.session.history

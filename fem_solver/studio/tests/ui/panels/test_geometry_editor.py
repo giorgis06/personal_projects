@@ -4,27 +4,9 @@ from examples.capacitor import capacitor_scene
 from femstudio.core.scene import editing
 from femstudio.core.scene.boundary import Between, Outline, Side
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
-from femstudio.ui.main_window import MainWindow
-from tests.ui.conftest import DATA, EXAMPLE
+from tests.ui.conftest import DATA
 
 pytestmark = pytest.mark.ui
-
-
-@pytest.fixture
-def window(qtbot, settings):
-    """A shown window, closed here rather than by qtbot.
-
-    qtbot closes its widgets before fixtures are torn down, when a test may still have the
-    unsaved-changes answer patched to "cancel": the window would then stay open and its 3D
-    widget would outlive its GL context, aborting the process a few tests later.
-    """
-    window = MainWindow(settings)
-    window.show()
-    qtbot.waitExposed(window)
-    yield window
-    window.session._set_dirty(False)
-    window.close()
-    window.deleteLater()
 
 
 @pytest.fixture
@@ -35,12 +17,6 @@ def panel(window):
 @pytest.fixture
 def empty(window, panel):
     window.new_scene()
-    return window
-
-
-@pytest.fixture
-def opened(window):
-    assert window.open_path(EXAMPLE)
     return window
 
 

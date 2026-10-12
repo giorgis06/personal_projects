@@ -23,8 +23,15 @@ class FileActions:
             return self.save()
         return choice == "discard"
 
+    def _solving(self, title: str) -> bool:
+        """A solve works in this scene's runs folder, so the scene stays until it ends."""
+        if not self._window.is_solving():
+            return False
+        self._window.report_error(title, "A solve is running: stop it or wait for it to end.")
+        return True
+
     def open_path(self, path: Path) -> bool:
-        if not self.confirm_discard():
+        if self._solving("Open") or not self.confirm_discard():
             return False
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
@@ -33,7 +40,7 @@ class FileActions:
             QApplication.restoreOverrideCursor()
 
     def new_scene(self) -> bool:
-        if not self.confirm_discard():
+        if self._solving("New scene") or not self.confirm_discard():
             return False
         types = [p.name for p in physics.available()]
         if not types:

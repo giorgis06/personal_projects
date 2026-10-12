@@ -22,9 +22,10 @@ def test_area_description_nests_operations(document):
 
 
 @pytest.mark.ui
-def test_physics_panel_shows_the_values_the_problem_type_asks_for(qtbot, document):
-    panel = PhysicsPanel()
+def test_physics_panel_shows_the_values_the_problem_type_asks_for(qtbot, session):
+    panel = PhysicsPanel(session)
     qtbot.addWidget(panel)
+    document = session.document
     panel.update_view(document, "region", "glass")
     assert panel.rows() == [("epsilon", "4")]
     panel.update_view(document, "boundary", "inner_electrode")
@@ -34,13 +35,13 @@ def test_physics_panel_shows_the_values_the_problem_type_asks_for(qtbot, documen
 
 
 @pytest.mark.ui
-def test_physics_panel_shows_robin_fields_and_the_default_boundary(qtbot, document):
-    document.scene.boundaries[0].condition = BoundaryCondition(
-        "robin", {"kappa": "2", "u_ref": "5"}
-    )
-    document.scene.default_boundary = BoundaryCondition("dirichlet", {"g": "0"})
-    panel = PhysicsPanel()
+def test_physics_panel_shows_robin_fields_and_the_default_boundary(qtbot, session):
+    scene = session.scene
+    scene.boundaries[0].condition = BoundaryCondition("robin", {"kappa": "2", "u_ref": "5"})
+    scene.default_boundary = BoundaryCondition("dirichlet", {"g": "0"})
+    panel = PhysicsPanel(session)
     qtbot.addWidget(panel)
+    document = session.document
     panel.update_view(document, "boundary", "inner_electrode")
     assert panel.rows() == [
         ("kind", "Coupled to a reference potential"),
@@ -52,20 +53,21 @@ def test_physics_panel_shows_robin_fields_and_the_default_boundary(qtbot, docume
 
 
 @pytest.mark.ui
-def test_physics_panel_without_a_scene(qtbot, tmp_path):
+def test_physics_panel_without_a_scene(qtbot, session, tmp_path):
     from femstudio.core.project.document import open_document
     from tests.ui.conftest import DATA
 
-    panel = PhysicsPanel()
+    panel = PhysicsPanel(session)
     qtbot.addWidget(panel)
     panel.update_view(open_document(DATA / "square.geo", tmp_path), "", "")
     assert panel.rows() == []
 
 
 @pytest.mark.ui
-def test_mesh_panel_counts(qtbot, document):
-    panel = MeshPanel()
+def test_mesh_panel_counts(qtbot, session):
+    panel = MeshPanel(session)
     qtbot.addWidget(panel)
+    document = session.document
     panel.update_view(document, "", "")
     rows = dict(panel.rows())
     assert rows["nodes"] == str(document.mesh.n_nodes)
@@ -77,14 +79,15 @@ def test_mesh_panel_counts(qtbot, document):
 
 
 @pytest.mark.ui
-def test_solve_panel_names_the_backend_and_its_availability(qtbot):
-    panel = SolvePanel()
+def test_solve_panel_names_the_backend_and_its_availability(qtbot, session):
+    panel = SolvePanel(session)
     qtbot.addWidget(panel)
     panel.set_backend("mock")
     rows = dict(panel.rows())
     assert rows["backend"] == "mock" and rows["available"] == "yes"
-    assert rows["method"] == "cg" and rows["tolerance"] == "1e-10"
-    assert rows["max iterations"] == "10000"
+    assert rows["method"] == "cg"
+    assert panel._tolerance.text() == "1e-10"
+    assert panel._iterations.value() == 10000
 
 
 @pytest.mark.ui

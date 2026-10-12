@@ -5,6 +5,7 @@ from examples.capacitor import capacitor_scene
 from femstudio.core.project.document import (
     DocumentError,
     default_mesh_size,
+    document_from_scene,
     open_document,
 )
 from femstudio.core.project.project import Project, ProjectError
@@ -135,3 +136,23 @@ def test_a_default_boundary_nobody_needs_is_not_listed(tmp_path):
     path = tmp_path / "scene.json"
     save_scene(scene, path)
     assert open_document(path, tmp_path).boundary_names == ["inner_electrode", "outer_wall"]
+
+
+def test_a_scene_is_meshed_at_the_size_asked_for(tmp_path):
+    scene = capacitor_scene()
+    size = default_mesh_size(scene) * 2
+    document = document_from_scene(scene, Path("s.json"), tmp_path, size=size)
+    assert document.size == size
+    assert document.mesh is not None
+    coarse = document.mesh.n_triangles
+    fine = document_from_scene(scene, Path("s.json"), tmp_path)
+    assert fine.size == default_mesh_size(scene)
+    assert fine.mesh.n_triangles > coarse
+
+
+@pytest.mark.parametrize("size", [0.0, -1.0, float("nan"), float("inf"), 1e-9])
+def test_an_unusable_size_leaves_no_mesh_and_says_why(tmp_path, size):
+    document = document_from_scene(capacitor_scene(), Path("s.json"), tmp_path, size=size)
+    assert document.mesh is None
+    assert document.scene is not None
+    assert "element size" in document.mesh_error
