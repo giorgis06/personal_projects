@@ -23,12 +23,22 @@ def _loop_curves(points) -> list[int]:
     ]
 
 
+def _counter_clockwise(points):
+    """Surfaces are built counter-clockwise so every triangle is; sides keep the shape's order."""
+    twice_area = sum(
+        points[i][0] * points[(i + 1) % len(points)][1]
+        - points[(i + 1) % len(points)][0] * points[i][1]
+        for i in range(len(points))
+    )
+    return points if twice_area >= 0 else points[::-1]
+
+
 def add_shape(shape: Shape) -> DimTag:
     """A new surface for the shape; each call makes an independent copy."""
     if isinstance(shape, Circle):
         x, y = shape.center
         return (SURFACE, _occ().addDisk(x, y, 0.0, shape.radius, shape.radius))
-    loop = _occ().addCurveLoop(_loop_curves(shape.points))
+    loop = _occ().addCurveLoop(_loop_curves(_counter_clockwise(shape.points)))
     return (SURFACE, _occ().addPlaneSurface([loop]))
 
 

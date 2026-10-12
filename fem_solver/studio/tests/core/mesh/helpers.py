@@ -8,8 +8,8 @@ UNIT = {"epsilon": 1.0}
 ZERO = BoundaryCondition("dirichlet", {"g": "0"})
 
 
-def scene(shapes, regions, boundaries=()) -> Scene:
-    return Scene("electrostatics", list(shapes), list(regions), list(boundaries))
+def scene(shapes, regions, boundaries=(), default=None) -> Scene:
+    return Scene("electrostatics", list(shapes), list(regions), list(boundaries), {}, default)
 
 
 def region(name, area) -> Region:

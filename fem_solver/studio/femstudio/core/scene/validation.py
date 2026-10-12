@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from dataclasses import dataclass
 from typing import Literal
@@ -5,7 +6,7 @@ from typing import Literal
 import numpy as np
 
 from femstudio.core.expressions.grammar import ExpressionError, parse
-from femstudio.core.scene.boundary import Between, Boundary, Outline
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, Boundary, Outline
 from femstudio.core.scene.operations import leaves
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
@@ -29,19 +30,23 @@ def _warning(rule: str, subject: str, message: str) -> Finding:
     return Finding("warning", rule, subject, message)
 
 
-def _groups(scene: Scene):
-    return (("shape", scene.shapes), ("region", scene.regions), ("boundary", scene.boundaries))
-
-
 def _names(scene: Scene) -> list[Finding]:
+    """Shapes have a namespace of their own; regions and boundaries share one in the mesh file."""
     findings = []
-    for kind, items in _groups(scene):
-        counts = Counter(item.name for item in items)
-        for index, item in enumerate(items):
-            if not item.name.strip():
-                findings.append(_error("names", f"{kind} #{index + 1}", "name is empty"))
-            elif counts[item.name] > 1:
-                findings.append(_error("names", f"{kind} '{item.name}'", "name is not unique"))
+    groups = (
+        [("shape", scene.shapes)],
+        [("region", scene.regions), ("boundary", scene.boundaries)],
+    )
+    for group in groups:
+        counts = Counter(item.name for _, items in group for item in items)
+        for kind, items in group:
+            for index, item in enumerate(items):
+                if not item.name.strip():
+                    findings.append(_error("names", f"{kind} #{index + 1}", "name is empty"))
+                elif item.name == DEFAULT_BOUNDARY_NAME and kind != "shape":
+                    findings.append(_error("names", f"{kind} '{item.name}'", "name is reserved"))
+                elif counts[item.name] > 1:
+                    findings.append(_error("names", f"{kind} '{item.name}'", "name is not unique"))
     return findings
 
 
@@ -49,14 +54,33 @@ def _shape_parameters(scene: Scene) -> list[Finding]:
     findings = []
     for shape in scene.shapes:
         subject = f"shape '{shape.name}'"
-        if isinstance(shape, Circle) and not shape.radius > 0:
+        numbers = _numbers(shape)
+        if not all(math.isfinite(n) for n in numbers):
+            findings.append(_error("shape-parameters", subject, "a coordinate is not finite"))
+        elif isinstance(shape, Circle) and not shape.radius > 0:
             findings.append(_error("shape-parameters", subject, "radius must be positive"))
         elif isinstance(shape, Rectangle) and not (shape.width > 0 and shape.height > 0):
             message = "width and height must be positive"
             findings.append(_error("shape-parameters", subject, message))
         elif isinstance(shape, Polygon) and len(shape.points) < 3:
             findings.append(_error("shape-parameters", subject, "a polygon needs three points"))
+        elif isinstance(shape, Polygon) and _repeats_a_point(shape):
+            message = "a point repeats its neighbour"
+            findings.append(_error("shape-parameters", subject, message))
     return findings
+
+
+def _numbers(shape) -> list[float]:
+    if isinstance(shape, Circle):
+        return [*shape.center, shape.radius]
+    if isinstance(shape, Rectangle):
+        return [*shape.corner, shape.width, shape.height]
+    return [c for point in shape.points for c in point]
+
+
+def _repeats_a_point(polygon: Polygon) -> bool:
+    points = polygon.points
+    return any(points[i] == points[(i + 1) % len(points)] for i in range(len(points)))
 
 
 def _references(scene: Scene) -> list[Finding]:
@@ -98,6 +122,9 @@ def _expressions(scene: Scene) -> list[Finding]:
         if boundary.condition is not None:
             for key, text in boundary.condition.values.items():
                 texts.append((f"boundary '{boundary.name}'", key, text))
+    if scene.default_boundary is not None:
+        for key, text in scene.default_boundary.values.items():
+            texts.append(("default boundary", key, text))
     findings = []
     for subject, key, text in texts:
         try:
@@ -151,7 +178,8 @@ def _boundary_defaults(scene: Scene) -> list[Finding]:
 
 
 def _dirichlet(scene: Scene) -> list[Finding]:
-    if any(b.condition is not None and b.condition.kind == "dirichlet" for b in scene.boundaries):
+    conditions = [b.condition for b in scene.boundaries] + [scene.default_boundary]
+    if any(c is not None and c.kind == "dirichlet" for c in conditions):
         return []
     message = "no dirichlet boundary, so the solution is defined only up to a constant"
     return [_warning("no-dirichlet", "scene", message)]

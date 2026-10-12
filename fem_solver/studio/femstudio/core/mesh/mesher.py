@@ -7,7 +7,7 @@ from femstudio.core.mesh import geometry, selection
 from femstudio.core.mesh.mesh_data import MeshData
 from femstudio.core.mesh.reader import read_mesh
 from femstudio.core.mesh.session import gmsh_session
-from femstudio.core.scene.boundary import Between, Outline
+from femstudio.core.scene.boundary import DEFAULT_BOUNDARY_NAME, Between, Outline
 from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.validation import validate
 
@@ -30,7 +30,10 @@ def _build_regions(scene: Scene) -> dict[str, list[geometry.DimTag]]:
         curves += geometry.add_outline(scene.shape(boundary.curve.shape), side)
 
     flat = [dimtag for surfaces in areas for dimtag in surfaces]
-    _, mapping = gmsh.model.occ.fragment(flat[:1], flat[1:] + curves)
+    if len(flat) == 1 and not curves:
+        mapping = [[flat[0]]]
+    else:
+        _, mapping = gmsh.model.occ.fragment(flat[:1], flat[1:] + curves)
     gmsh.model.occ.synchronize()
 
     regions, offset = {}, 0
@@ -56,13 +59,37 @@ def _name_groups(scene: Scene, regions: dict[str, list[geometry.DimTag]]) -> Non
     for number, region in enumerate(scene.regions, start=1):
         tags = [tag for _, tag in regions[region.name]]
         gmsh.model.addPhysicalGroup(2, tags, number, region.name)
+    if not selection.surfaces_are_connected(regions):
+        raise MeshError("the regions do not form one connected piece")
+
+    claimed: dict[int, str] = {}
     for number, boundary in enumerate(scene.boundaries, start=1):
-        tags = selection.curves_of(boundary.curve, scene, regions)
-        if not tags:
+        found = selection.curves_of(boundary.curve, scene, regions)
+        if not found:
             raise MeshError(f"boundary '{boundary.name}' matches no curve of the geometry")
-        if not all(selection.is_in_domain(tag, regions) for tag in tags):
+        tags = [tag for tag in found if selection.is_in_domain(tag, regions)]
+        if not tags:
             raise MeshError(f"boundary '{boundary.name}' lies outside every region")
+        for tag in tags:
+            if tag in claimed:
+                names = f"'{claimed[tag]}' and '{boundary.name}'"
+                raise MeshError(f"boundaries {names} both name the same curve")
+            claimed[tag] = boundary.name
         gmsh.model.addPhysicalGroup(1, tags, number, boundary.name)
+    _name_leftover_edges(scene, regions, set(claimed), len(scene.boundaries) + 1)
+
+
+def _name_leftover_edges(scene: Scene, regions, named: set[int], number: int) -> None:
+    leftover = sorted(selection.exterior_curves(regions) - named)
+    if not leftover:
+        return
+    if scene.default_boundary is None:
+        x, y = selection.midpoint(leftover[0])
+        raise MeshError(
+            f"{len(leftover)} outer curve(s) are named by no boundary, for example near "
+            f"({x:.3g}, {y:.3g}); name them or set a default boundary"
+        )
+    gmsh.model.addPhysicalGroup(1, leftover, number, DEFAULT_BOUNDARY_NAME)
 
 
 def mesh_scene(
@@ -78,10 +105,15 @@ def mesh_scene(
         raise MeshError("the scene has no regions")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with gmsh_session(on_log):
-        regions = _build_regions(scene)
-        _name_groups(scene, regions)
-        gmsh.option.setNumber("Mesh.MeshSizeMax", size)
-        gmsh.model.mesh.generate(2)
-        gmsh.write(str(path))
-    return read_mesh(path, on_log)
+    try:
+        with gmsh_session(on_log):
+            regions = _build_regions(scene)
+            _name_groups(scene, regions)
+            gmsh.option.setNumber("Mesh.MeshSizeMax", size)
+            gmsh.model.mesh.generate(2)
+            gmsh.write(str(path))
+        return read_mesh(path, on_log)
+    except MeshError:
+        raise
+    except Exception as error:
+        raise MeshError(f"gmsh failed: {error}") from error

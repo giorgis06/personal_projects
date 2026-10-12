@@ -96,5 +96,6 @@
   ],
   "source": {
     "rho": "0"
-  }
+  },
+  "default_boundary": null
 }

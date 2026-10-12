@@ -138,6 +138,7 @@ def scene_to_dict(scene: Scene) -> dict:
             for b in scene.boundaries
         ],
         "source": dict(scene.source),
+        "default_boundary": _encode_condition(scene.default_boundary),
     }
 
 
@@ -155,7 +156,10 @@ def scene_from_dict(data: dict) -> Scene:
             Boundary(b["name"], _decode_curve(b), _decode_condition(b["condition"]))
             for b in data["boundaries"]
         ]
-        return Scene(data["problem_type"], shapes, regions, boundaries, dict(data["source"]))
+        default = _decode_condition(data.get("default_boundary"))
+        return Scene(
+            data["problem_type"], shapes, regions, boundaries, dict(data["source"]), default
+        )
     except SceneFileError:
         raise
     except (KeyError, TypeError, ValueError, AttributeError) as error:

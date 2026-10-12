@@ -1,6 +1,13 @@
 import pytest
 from examples.capacitor import capacitor_scene
-from femstudio.core.scene.boundary import Between, Boundary, BoundaryCondition, Outline, Side
+from femstudio.core.scene.boundary import (
+    DEFAULT_BOUNDARY_NAME,
+    Between,
+    Boundary,
+    BoundaryCondition,
+    Outline,
+    Side,
+)
 from femstudio.core.scene.region import Region
 from femstudio.core.scene.shapes import Circle, Polygon, Rectangle
 from femstudio.core.scene.validation import validate
@@ -42,6 +49,21 @@ def test_empty_name():
     assert ("error", "names", "region #1") in found(scene)
 
 
+def test_a_region_and_a_boundary_may_not_share_a_name():
+    scene = capacitor_scene()
+    scene.boundaries[0].name = "glass"
+    findings = found(scene)
+    assert ("error", "names", "region 'glass'") in findings
+    assert ("error", "names", "boundary 'glass'") in findings
+
+
+@pytest.mark.parametrize("kind", ["region", "boundary"])
+def test_the_default_boundary_name_is_reserved(kind):
+    scene = capacitor_scene()
+    {"region": scene.regions, "boundary": scene.boundaries}[kind][0].name = DEFAULT_BOUNDARY_NAME
+    assert ("error", "names", f"{kind} '{DEFAULT_BOUNDARY_NAME}'") in found(scene)
+
+
 def test_same_name_in_different_groups_is_allowed():
     scene = capacitor_scene()
     scene.boundaries[0].name = "electrode"
@@ -59,6 +81,22 @@ def test_same_name_in_different_groups_is_allowed():
     ],
 )
 def test_degenerate_shapes(shape):
+    scene = capacitor_scene()
+    scene.shapes.append(shape)
+    assert ("error", "shape-parameters", "shape 's'") in found(scene)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        Circle("s", (float("inf"), 0.0), 1.0),
+        Circle("s", (0.0, 0.0), float("nan")),
+        Rectangle("s", (0.0, float("nan")), 1.0, 1.0),
+        Polygon("s", ((0.0, 0.0), (0.0, 0.0), (1.0, 0.0), (0.0, 1.0))),
+        Polygon("s", ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (0.0, 0.0))),
+    ],
+)
+def test_non_finite_coordinates_and_repeated_points(shape):
     scene = capacitor_scene()
     scene.shapes.append(shape)
     assert ("error", "shape-parameters", "shape 's'") in found(scene)
@@ -153,6 +191,21 @@ def test_bad_expression_in_the_source():
     scene = capacitor_scene()
     scene.source["rho"] = "1 +"
     assert ("error", "expressions", "source 'rho'") in found(scene)
+
+
+def test_bad_expression_in_the_default_boundary():
+    scene = capacitor_scene()
+    scene.default_boundary = BoundaryCondition("dirichlet", {"g": "q"})
+    assert ("error", "expressions", "default boundary") in found(scene)
+
+
+def test_a_dirichlet_default_boundary_counts_as_a_dirichlet_boundary():
+    scene = capacitor_scene()
+    for boundary in scene.boundaries:
+        boundary.condition = BoundaryCondition("neumann", {"g": "0"})
+    assert ("warning", "no-dirichlet", "scene") in found(scene)
+    scene.default_boundary = BoundaryCondition("dirichlet", {"g": "0"})
+    assert "no-dirichlet" not in rules(scene)
 
 
 def test_good_expressions_pass():

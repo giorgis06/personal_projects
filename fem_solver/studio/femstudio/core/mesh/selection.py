@@ -33,6 +33,11 @@ def _sample(curve: int) -> np.ndarray:
     return np.array(gmsh.model.getValue(CURVE, curve, params)).reshape(-1, 3)[:, :2]
 
 
+def midpoint(curve: int) -> tuple[float, float]:
+    x, y = _sample(curve)[SAMPLES // 2]
+    return float(x), float(y)
+
+
 def _curve_tags(dimtags: list[DimTag]) -> set[int]:
     return {tag for _, tag in dimtags}
 
@@ -58,6 +63,31 @@ def is_in_domain(curve: int, regions: dict[str, list[DimTag]]) -> bool:
     """False for a curve that touches none of the region surfaces."""
     if gmsh.model.getAdjacencies(CURVE, curve)[0].size:
         return True
-    midpoint = _sample(curve)[SAMPLES // 2]
+    x, y = midpoint(curve)
     surfaces = [tag for dimtags in regions.values() for dim, tag in dimtags if dim == SURFACE]
-    return any(gmsh.model.isInside(SURFACE, s, [*midpoint, 0.0]) for s in surfaces)
+    return any(gmsh.model.isInside(SURFACE, s, [x, y, 0.0]) for s in surfaces)
+
+
+def exterior_curves(regions: dict[str, list[DimTag]]) -> set[int]:
+    """Curves that bound exactly one region surface: the outer edge and the edges of holes."""
+    surfaces = [dimtag for dimtags in regions.values() for dimtag in dimtags]
+    return _curve_tags(gmsh.model.getBoundary(surfaces, combined=True, oriented=False))
+
+
+def surfaces_are_connected(regions: dict[str, list[DimTag]]) -> bool:
+    """Whether the region surfaces form one piece when joined through shared curves."""
+    surfaces = [dimtag for dimtags in regions.values() for dimtag in dimtags]
+    parent = {dimtag: dimtag for dimtag in surfaces}
+
+    def root(item):
+        while parent[item] != item:
+            item = parent[item]
+        return item
+
+    by_curve: dict[int, DimTag] = {}
+    for dimtag in surfaces:
+        for _, curve in gmsh.model.getBoundary([dimtag], combined=False, oriented=False):
+            if curve in by_curve:
+                parent[root(dimtag)] = root(by_curve[curve])
+            by_curve[curve] = dimtag
+    return len({root(dimtag) for dimtag in surfaces}) <= 1

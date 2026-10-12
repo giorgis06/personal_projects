@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+DEFAULT_BOUNDARY_NAME = "default_boundary"  # reserved: the group of outer edges nobody named
+
 
 @dataclass
 class BoundaryCondition:

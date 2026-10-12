@@ -189,7 +189,10 @@ Run before meshing, shown in the window as a list with the offending name:
 - every region has a material;
 - a boundary with no condition defaults to insulating (Neumann, g = 0), with a warning;
 - no Dirichlet boundary at all is a warning (solution defined only up to a constant);
-- names are unique and non-empty.
+- names are unique and non-empty; regions and boundaries share one namespace, as in the `.msh`;
+- the name `default_boundary` is reserved.
+
+The mesher also refuses what the solver's `validate()` refuses: an outer edge no boundary names (unless `Scene.default_boundary` is set, which then covers those edges and is listed in `problem.json` under the name `default_boundary`), two boundaries naming one curve, and regions that do not form one connected piece.
 
 ## Window design: Workbench
 
@@ -290,7 +293,7 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 |---|---|---|
 | M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
-| M2 | in review | `between` boundaries never warn about a missing condition; outline and side do. `mesh_scene` returns the MeshData read back from the file it wrote. gmsh log lines reach `on_log` after each stage, not live. |
+| M2 | in review | `between` boundaries never warn about a missing condition; outline and side do. `mesh_scene` returns the MeshData read back from the file it wrote. gmsh log lines reach `on_log` after each stage, not live. Review fixes: unnamed outer edges refused unless `default_boundary` is set. |
 | M3 | not started | |
 | M4 | not started | |
 | M5 | not started | |

@@ -34,6 +34,7 @@ def rich_scene() -> Scene:
             Boundary("free", Outline("tri")),
         ],
         source={"rho": "exp(-r^2)"},
+        default_boundary=BoundaryCondition("dirichlet", {"g": "0"}),
     )
 
 
@@ -69,7 +70,14 @@ def test_written_form_matches_a_hand_written_file():
             {"name": "rim", "shape": "disk", "condition": {"kind": "dirichlet", "g": "0"}}
         ],
         "source": {"rho": "0"},
+        "default_boundary": None,
     }
+
+
+def test_files_without_a_default_boundary_still_load():
+    data = scene_to_dict(rich_scene())
+    del data["default_boundary"]
+    assert scene_from_dict(data).default_boundary is None
 
 
 def test_each_curve_selector_has_its_own_written_form():
