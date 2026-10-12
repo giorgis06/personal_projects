@@ -87,6 +87,7 @@ fem_solver/studio/
       project/
         project.py           a folder on disk holding one scene and its runs
         run.py               one solve: inputs, outputs, log, status
+        document.py          what is open: a mesh, with the scene and project it came from
     physics/
       base.py                ProblemType interface
       registry.py
@@ -103,7 +104,9 @@ fem_solver/studio/
       theme/
         tokens.py            every colour, font and spacing value, by name
         stylesheet.py        builds the Qt stylesheet from the tokens
+        zoom.py              the interface scale factor, its limits and the stored choice
       shell/
+        menu_bar.py          File, Edit, View, Run, Help
         workflow_bar.py      the five step tabs, backend selector, Run button
         scene_dock.py        the Scene tree (left)
         properties_dock.py   hosts the current panel (right)
@@ -112,7 +115,7 @@ fem_solver/studio/
         viewport.py          the tabbed centre area that hosts the views
       panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock
       views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
-      widgets/               expression_edit, tensor_edit
+      widgets/               dock_title, readouts (M5); expression_edit, tensor_edit (M7)
       workers/               solve_worker (keeps the window responsive)
   tests/                     mirrors femstudio/ folder by folder
   examples/                  capacitor.py and capacitor.scene.json
@@ -260,6 +263,14 @@ All visual values live in `ui/theme/tokens.py` and nowhere else. No colour, font
 - **Colour maps:** `viridis` by default. Offer `viridis`, `inferno` and `coolwarm`, with `coolwarm` meant for fields that change sign. The colour map is data colour, separate from the interface tokens.
 - **Theme:** light only for now. Because every value is a token, a dark set can be added later without touching the widgets.
 
+### Interface zoom
+
+The whole interface scales: text, rows, paddings, dock widths and controls. The drawing in the viewport does not (the mouse wheel zooms it).
+
+- View menu: Zoom in (`Ctrl++`, also `Ctrl+=`), Zoom out (`Ctrl+-`), Reset zoom (`Ctrl+0`); steps of 10 %, from 70 % to 200 %. The current value is shown in the status bar.
+- There is one scale factor, in `ui/theme/zoom.py`. The tokens stay the 100 % values; the stylesheet and fonts are rebuilt from them times the factor, and widgets that set sizes in code read them through `zoom.px` and refresh in an `apply_zoom` method. 1 px rules stay 1 px.
+- The choice is remembered between sessions (`QSettings`).
+
 ## Milestones
 
 Each is one pull request and ends with a stop for review.
@@ -310,8 +321,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
 | M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
-| M4 | in review | Run folder is `<project>/runs/run_NNN/{scene.json, problem.json, mesh.msh, result/, log.txt, status.json}`; the run keeps the scene it was solved with. To stop a solve, raise from `on_log`. `Run.execute` takes the problem type and backend as arguments so `core/` imports neither. `ProblemType.derive` is new. The real-solver test runs only when `FEM_EXECUTABLE` is set. |
-| M5 | not started | |
+| M4 | done | Merged (#20). Run folders hold `scene.json`; stopping a solve is raising from `on_log`. |
+| M5 | in review | Opens a project folder, `scene.json`, `.msh` or `.geo`; a scene is meshed at about 40 elements across. Heatmap and 3D surface tabs are placeholders until M8; Run is disabled until M7; panels are read-only until M6 and M7. A scene that cannot be meshed yet still opens: shapes are drawn, the reason is shown in the viewport and the findings. Interface zoom (owner request on #21) is in. Window checked on screen under X11 and offscreen. |
 | M6 | not started | |
 | M7 | not started | |
 | M8 | not started | |

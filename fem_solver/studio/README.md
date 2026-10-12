@@ -16,8 +16,11 @@ python3 -m venv .venv
 From `fem_solver/studio/`:
 
 ```bash
-../.venv/bin/python -m femstudio
+../.venv/bin/python -m femstudio                                  # empty window
+../.venv/bin/python -m femstudio examples/capacitor.scene.json    # open a scene
 ```
+
+A project folder, `scene.json`, `.msh` or `.geo` can be opened from the command line or File > Open.
 
 ## Test and lint
 
