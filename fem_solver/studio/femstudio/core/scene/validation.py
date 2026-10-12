@@ -127,6 +127,9 @@ def _expressions(scene: Scene) -> list[Finding]:
             texts.append(("default boundary", key, text))
     findings = []
     for subject, key, text in texts:
+        if not isinstance(text, str):
+            findings.append(_error("expressions", subject, f"{key} must be an expression string"))
+            continue
         try:
             parse(text)
         except ExpressionError as error:

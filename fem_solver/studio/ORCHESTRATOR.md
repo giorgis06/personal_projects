@@ -160,7 +160,7 @@ and expects exit code 0 on success, non-zero with a message on stderr on failure
     "glass": {"epsilon": [[4.0, 0.0], [0.0, 4.0]]},
     "air":   {"epsilon": [[1.0, 0.0], [0.0, 1.0]]}
   },
-  "source": {"rho": "exp(-((x-1)^2 + y^2)/0.02)"},
+  "source": {"rho": "(exp(-((x-1)^2 + y^2)/0.02)) / 8.8541878128e-12"},
   "boundaries": {
     "inner_electrode": {"kind": "dirichlet", "g": "5*cos(theta)"},
     "outer_wall":      {"kind": "dirichlet", "g": "0"}
@@ -170,7 +170,7 @@ and expects exit code 0 on success, non-zero with a message on stderr on failure
 }
 ```
 
-- Keys under `regions` and `boundaries` are gmsh physical group names in the `.msh`.
+- Keys under `regions` and `boundaries` are gmsh physical group names in the `.msh`. Outer edges no boundary names are listed under the reserved name `default_boundary`.
 - Every value that can vary in space is an expression string. The language is fixed in `core/expressions/grammar.py`: numbers, `+ - * / ^`, parentheses, variables `x y r theta`, constant `pi`, functions `sin cos tan exp log sqrt abs`. It is deliberately the subset that small C++ expression libraries accept.
 
 Result, written by the solver into `<run_folder>/result/`:
@@ -179,6 +179,21 @@ Result, written by the solver into `<run_folder>/result/`:
 - `run.json`: `{"status", "iterations", "residual", "timings": {...}, "message"}`.
 
 `results/reader.py` is the only module that knows this format. A `.vtu` reader can be added beside it later without touching anything else.
+
+### Units
+
+The file holds the numbers the solver works on, for `-div(a grad u) = f` with no units. The window works in SI, and the electrostatics writer is the only place that converts (epsilon_0 = 8.8541878128e-12 F/m, a named constant in `physics/electrostatics/`). The solver is 2D, so every quantity is per metre of depth.
+
+| Quantity | User enters | Written to `problem.json` |
+|---|---|---|
+| Lengths | m | unchanged |
+| `epsilon` | relative, no unit | unchanged |
+| Dirichlet `g` | V | unchanged |
+| `rho` | C/m^3 | `(rho) / 8.8541878128e-12` |
+| Neumann `g` (surface charge) | C/m^2 | `(g) / 8.8541878128e-12` |
+| Robin | `kappa` in 1/m, `u_ref` in V | `kappa` unchanged, `g = (kappa) * (u_ref)` |
+
+Scaling is applied to the expression string in parentheses, so it stays in the expression language. Robin's file `g` is `kappa * g_D + g_N` with `g_N = 0`, as in `problem/boundary_conditions.h`; `kappa` must be positive. Outputs `u` (V) and `E` (V/m) need no conversion; energy density is `1/2 epsilon_0 epsilon_r |E|^2` in J/m^3.
 
 ## Validation
 
@@ -293,8 +308,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 |---|---|---|
 | M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
-| M2 | in review | `between` boundaries never warn about a missing condition; outline and side do. `mesh_scene` returns the MeshData read back from the file it wrote. gmsh log lines reach `on_log` after each stage, not live. Review fixes: unnamed outer edges refused unless `default_boundary` is set. |
-| M3 | not started | |
+| M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
+| M3 | in review | Problem types are discovered by folder. `validate` is spec-driven in the base class. A boundary with no condition is written as insulating; a `between` boundary with no condition is omitted. Units and epsilon_0 scaling per owner decision on #19 (see Units). |
 | M4 | not started | |
 | M5 | not started | |
 | M6 | not started | |

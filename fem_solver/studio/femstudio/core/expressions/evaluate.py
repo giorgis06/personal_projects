@@ -2,7 +2,9 @@ import numpy as np
 
 from femstudio.core.expressions.grammar import (
     CONSTANTS,
+    VARIABLES,
     Binary,
+    Call,
     Name,
     Node,
     Number,
@@ -52,3 +54,23 @@ def evaluate(expression: str | Node, x, y) -> np.ndarray:
     with np.errstate(all="ignore"):
         result = _eval(node, variables)
     return np.broadcast_to(result, x.shape).copy()
+
+
+def _uses_variables(node: Node) -> bool:
+    if isinstance(node, Name):
+        return node.name in VARIABLES
+    if isinstance(node, Unary):
+        return _uses_variables(node.operand)
+    if isinstance(node, Binary):
+        return _uses_variables(node.left) or _uses_variables(node.right)
+    if isinstance(node, Call):
+        return _uses_variables(node.argument)
+    return False
+
+
+def constant_value(expression: str | Node) -> float | None:
+    """The value of an expression that does not depend on x, y, r or theta; None otherwise."""
+    node = parse(expression) if isinstance(expression, str) else expression
+    if _uses_variables(node):
+        return None
+    return float(evaluate(node, 0.0, 0.0))

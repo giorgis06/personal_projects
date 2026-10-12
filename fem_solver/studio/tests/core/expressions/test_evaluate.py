@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 import pytest
-from femstudio.core.expressions.evaluate import evaluate
+from femstudio.core.expressions.evaluate import constant_value, evaluate
 from femstudio.core.expressions.grammar import ExpressionError
 
 
@@ -66,3 +66,18 @@ def test_domain_errors_give_nan_and_inf_not_exceptions():
 def test_invalid_text_raises():
     with pytest.raises(ExpressionError):
         evaluate("x +", 0.0, 0.0)
+
+
+@pytest.mark.parametrize(("text", "expected"), [("5", 5.0), ("2*pi", 2 * math.pi), ("1 - 1", 0.0)])
+def test_constant_value_of_a_constant(text, expected):
+    assert constant_value(text) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("text", ["x", "1 + y", "sin(theta)", "exp(-r)"])
+def test_constant_value_is_none_when_position_matters(text):
+    assert constant_value(text) is None
+
+
+def test_constant_value_of_invalid_text_raises():
+    with pytest.raises(ExpressionError):
+        constant_value("2 +")
