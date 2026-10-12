@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+DEFAULT_BOUNDARY_NAME = "default_boundary"  # reserved: the group of outer edges nobody named
+
 
 @dataclass
 class BoundaryCondition:
@@ -10,9 +12,35 @@ class BoundaryCondition:
 
 
 @dataclass
+class Outline:
+    """The whole outline of a shape."""
+
+    shape: str
+
+
+@dataclass
+class Side:
+    """One side of a shape, by the name listed in the shape's `sides`."""
+
+    shape: str
+    side: str
+
+
+@dataclass
+class Between:
+    """The curve two regions share. It is interior; without a condition it is simply continuous."""
+
+    first: str
+    second: str
+
+
+Curve = Outline | Side | Between
+
+
+@dataclass
 class Boundary:
-    """The outline of the shape called `shape`. Without a condition it is insulating."""
+    """A named curve. Without a condition it is insulating (neumann, g = 0)."""
 
     name: str
-    shape: str
+    curve: Curve
     condition: BoundaryCondition | None = None

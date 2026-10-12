@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from femstudio.core.scene.boundary import Boundary, BoundaryCondition
+from femstudio.core.scene.boundary import Between, Boundary, BoundaryCondition, Curve, Outline, Side
 from femstudio.core.scene.operations import Area, Operation, difference, intersection, union
 from femstudio.core.scene.region import Region
 from femstudio.core.scene.scene import Scene
@@ -86,6 +86,23 @@ def _decode_material(data: dict) -> dict:
     }
 
 
+def _encode_curve(curve: Curve) -> dict:
+    if isinstance(curve, Between):
+        return {"between": [curve.first, curve.second]}
+    if isinstance(curve, Side):
+        return {"shape": curve.shape, "side": curve.side}
+    return {"shape": curve.shape}
+
+
+def _decode_curve(data: dict) -> Curve:
+    if "between" in data:
+        first, second = data["between"]
+        return Between(first, second)
+    if "side" in data:
+        return Side(data["shape"], data["side"])
+    return Outline(data["shape"])
+
+
 def _encode_condition(condition: BoundaryCondition | None):
     if condition is None:
         return None
@@ -113,10 +130,15 @@ def scene_to_dict(scene: Scene) -> dict:
             for r in scene.regions
         ],
         "boundaries": [
-            {"name": b.name, "shape": b.shape, "condition": _encode_condition(b.condition)}
+            {
+                "name": b.name,
+                **_encode_curve(b.curve),
+                "condition": _encode_condition(b.condition),
+            }
             for b in scene.boundaries
         ],
         "source": dict(scene.source),
+        "default_boundary": _encode_condition(scene.default_boundary),
     }
 
 
@@ -131,10 +153,13 @@ def scene_from_dict(data: dict) -> Scene:
             for r in data["regions"]
         ]
         boundaries = [
-            Boundary(b["name"], b["shape"], _decode_condition(b["condition"]))
+            Boundary(b["name"], _decode_curve(b), _decode_condition(b["condition"]))
             for b in data["boundaries"]
         ]
-        return Scene(data["problem_type"], shapes, regions, boundaries, dict(data["source"]))
+        default = _decode_condition(data.get("default_boundary"))
+        return Scene(
+            data["problem_type"], shapes, regions, boundaries, dict(data["source"]), default
+        )
     except SceneFileError:
         raise
     except (KeyError, TypeError, ValueError, AttributeError) as error:

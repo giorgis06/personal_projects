@@ -65,7 +65,7 @@ fem_solver/studio/
         shapes.py            Circle, Rectangle, Polygon (parametric, named)
         operations.py        union, difference, intersection
         region.py            a named area that will carry a material
-        boundary.py          a named curve that will carry a boundary condition
+        boundary.py          a named curve (outline, side or between two regions) with a condition
         scene.py             Scene = shapes + regions + boundaries + physics values
         serialization.py     Scene <-> scene.json
         validation.py        checks listed under "Validation"
@@ -74,6 +74,9 @@ fem_solver/studio/
         evaluate.py          parse, validate, evaluate on numpy arrays
       mesh/
         mesher.py            Scene -> gmsh model -> .msh, assigns tags from names
+        geometry.py          shapes and booleans -> OpenCASCADE surfaces and curves
+        selection.py         finds the model curves a named boundary refers to
+        session.py           one gmsh session with its log, shared by mesher and reader
         mesh_data.py         nodes, triangles, named regions and edges as arrays
         reader.py            .msh / .geo -> MeshData
         quality.py           element quality statistics
@@ -186,7 +189,10 @@ Run before meshing, shown in the window as a list with the offending name:
 - every region has a material;
 - a boundary with no condition defaults to insulating (Neumann, g = 0), with a warning;
 - no Dirichlet boundary at all is a warning (solution defined only up to a constant);
-- names are unique and non-empty.
+- names are unique and non-empty; regions and boundaries share one namespace, as in the `.msh`;
+- the name `default_boundary` is reserved.
+
+The mesher also refuses what the solver's `validate()` refuses: an outer edge no boundary names (unless `Scene.default_boundary` is set, which then covers those edges and is listed in `problem.json` under the name `default_boundary`), two boundaries naming one curve, and regions that do not form one connected piece.
 
 ## Window design: Workbench
 
@@ -247,7 +253,7 @@ Each is one pull request and ends with a stop for review.
 |---|---|---|
 | M0 | Scaffold: folders, `pyproject.toml` (package metadata and pytest settings only), `requirements.txt`, an empty `QMainWindow` that opens (the Workbench layout itself arrives in M5), README with run instructions, and the architecture test that forbids Qt and PyVista imports outside `ui/` | `python -m femstudio` opens a window; lint passes; `pytest -m "not ui and not real_solver"` collects and passes at least one test, so the CI job goes green |
 | M1 | `core/scene`, `core/expressions`, serialization, validation, and the capacitor written as a scene in `examples/` | A scene built in code round-trips through `scene.json`; every validation rule has a passing and a failing test; no Qt import in `core/` (enforced by a test) |
-| M2 | `core/mesh`: mesher, reader, quality | The capacitor scene from `examples/` meshes to a `.msh` whose physical names match the scene; every `fem_solver/tests/data/*.geo` loads into MeshData with its named regions and edges |
+| M2 | `core/mesh`: mesher, reader, quality; boundaries picked by outline, by side of a shape, or between two regions | The capacitor scene from `examples/` meshes to a `.msh` whose physical names match the scene; sides, interior curves and region interfaces mesh as named edges; every `fem_solver/tests/data/*.geo` loads into MeshData with its named regions and edges |
 | M3 | `physics/`: interface, registry, electrostatics spec and `problem.json` writer | Written file matches the contract; schema covered by tests |
 | M4 | `backends/`, `core/results`, `core/project` | Mock backend produces a field end to end; executable backend passes tests against a fake `fem` script covering success, failure and missing binary |
 | M5 | The Workbench window from "Window design": theme tokens and stylesheet, every region in `ui/shell/`, opening a `.geo` / `.msh` / project, the Geometry and Mesh viewport tabs, regions and boundaries coloured and listed by name in the Scene dock | The capacitor opens; selecting a row in the Scene dock highlights that part; the window matches the reference mockup's arrangement; the colour-literal test passes |
@@ -286,8 +292,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | Milestone | State | Notes |
 |---|---|---|
 | M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
-| M1 | in review | Rules in `validation.py` are generic, keyed on condition kind and tensor values, not on problem type. A boundary is the outline of one named shape; single sides (`square.geo`) are not expressible yet. |
-| M2 | not started | |
+| M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
+| M2 | in review | `between` boundaries never warn about a missing condition; outline and side do. `mesh_scene` returns the MeshData read back from the file it wrote. gmsh log lines reach `on_log` after each stage, not live. Review fixes: unnamed outer edges refused unless `default_boundary` is set. |
 | M3 | not started | |
 | M4 | not started | |
 | M5 | not started | |
