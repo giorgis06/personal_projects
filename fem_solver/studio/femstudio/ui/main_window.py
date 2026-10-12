@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from femstudio.backends import registry as backends
 from femstudio.core.project.document import Document
 from femstudio.physics import registry as physics
+from femstudio.ui.results_state import ResultsState
 from femstudio.ui.runner import Runner, why_not_runnable
 from femstudio.ui.session import RunRefused, Session
 from femstudio.ui.shell.file_actions import FileActions
@@ -55,10 +56,11 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.workflow)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
-        self.viewport = Viewport()
+        self.results = ResultsState()
+        self.viewport = Viewport(self.results)
         self.setCentralWidget(self.viewport)
         self.scene_dock = SceneDock()
-        self.properties = PropertiesDock(self.session)
+        self.properties = PropertiesDock(self.session, self.results)
         self.log = LogDock()
         self.status = StatusPanel()
         self.setStatusBar(self.status)
@@ -116,6 +118,26 @@ class MainWindow(QMainWindow):
     def _on_selection(self, kind: str, name: str) -> None:
         self.properties.set_selection(kind, name)
         self.viewport.highlight(kind, name)
+        if kind == "run":
+            self._load_run(name)
+
+    def _load_run(self, name: str) -> None:
+        """Selecting a run in the Scene dock shows its result in the field views."""
+        document = self.session.document
+        number = name.rsplit(" ", 1)[-1]
+        run = next((r for r in self.session.runs() if str(r.number) == number), None)
+        if run is None or document is None or document.scene is None:
+            self.results.clear()
+            return
+        try:
+            problem_type = physics.get(document.scene.problem_type)
+        except KeyError:
+            self.results.clear(f"no problem type '{document.scene.problem_type}' to read it with")
+            return
+        if self.results.show_run(run, problem_type):
+            self.log.append_line(f"[results] run {run.number} loaded")
+        else:
+            self.log.append_line(f"[results] {self.results.message}")
 
     def _select(self, kind: str, name: str) -> None:
         try:
@@ -233,6 +255,8 @@ class MainWindow(QMainWindow):
         )
         self.properties.set_document(document, keep_selection=keep)
         self.viewport.set_document(document, reset_view)
+        if reset_view:
+            self.results.clear()  # another scene: the run being looked at is not its own
         self.status.set_document(document)
         self.menu.set_saveable(document is not None and document.scene is not None)
         self._update_run_enabled()
@@ -299,6 +323,9 @@ class MainWindow(QMainWindow):
         self._update_run_enabled()
         if state == "failed":
             self.report_error(f"Run {number} failed", message)
+        elif state == "success":
+            self.workflow.set_step("Results")
+            self._select("run", f"run {number}")
 
     def _show_runs(self) -> None:
         self.scene_dock.set_runs(self.session.runs())

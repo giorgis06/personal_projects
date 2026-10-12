@@ -7,6 +7,7 @@ from femstudio.ui.panels.mesh import MeshPanel
 from femstudio.ui.panels.physics import PhysicsPanel
 from femstudio.ui.panels.results import ResultsPanel
 from femstudio.ui.panels.solve import SolvePanel
+from femstudio.ui.results_state import ResultsState
 from femstudio.ui.session import Session
 from femstudio.ui.theme import tokens as t
 from femstudio.ui.theme import zoom
@@ -16,7 +17,7 @@ from femstudio.ui.widgets.dock_title import DockTitle
 class PropertiesDock(QDockWidget):
     """Hosts the panel of the current step, showing what is selected in the scene."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, results: ResultsState) -> None:
         super().__init__("Properties")
         self.setObjectName("propertiesDock")
         self.setTitleBarWidget(DockTitle("Properties", self))
@@ -25,7 +26,7 @@ class PropertiesDock(QDockWidget):
             "Physics": PhysicsPanel(session),
             "Mesh": MeshPanel(session),
             "Solve": SolvePanel(session),
-            "Results": ResultsPanel(),
+            "Results": ResultsPanel(results),
         }
         self._stack = QStackedWidget()
         for panel in self._panels.values():

@@ -47,6 +47,15 @@ def opened(window):
 
 
 @pytest.fixture
+def solved(qtbot, opened):
+    """The window after one run with the mock backend, which is then the result on show."""
+    with qtbot.waitSignal(opened.runner.finished, timeout=30000):
+        opened.workflow._run.click()
+    assert opened.results.results is not None
+    return opened
+
+
+@pytest.fixture
 def session():
     """A Session with the capacitor open; its temporary folder goes at the end of the test."""
     from femstudio.ui.session import Session

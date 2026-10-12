@@ -1,6 +1,7 @@
 import pytest
 from femstudio.core.scene.boundary import BoundaryCondition
 from femstudio.core.scene.validation import Finding
+from femstudio.ui.results_state import ResultsState
 from femstudio.ui.shell.log_dock import LogDock
 from femstudio.ui.shell.menu_bar import MainMenuBar
 from femstudio.ui.shell.status_bar import (
@@ -90,7 +91,7 @@ def test_log_dock_appends_lines_in_order(qtbot):
 
 @pytest.mark.ui
 def test_viewport_tabs_in_order_and_switching(qtbot):
-    viewport = Viewport()
+    viewport = Viewport(ResultsState())
     qtbot.addWidget(viewport)
     assert viewport.tab_titles() == ["Heatmap", "3D surface", "Mesh", "Geometry"]
     viewport.show_tab("Mesh")

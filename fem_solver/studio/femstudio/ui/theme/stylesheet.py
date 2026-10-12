@@ -113,6 +113,11 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit {{ border: {rule}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus,
 QPlainTextEdit:focus {{
   border: {t.RULE_WIDTH}px solid {t.ACCENT}; }}
+QCheckBox {{ spacing: {px(t.GAP * 2)}; }}
+QCheckBox::indicator {{ width: {px(t.CHECK_SIZE)}; height: {px(t.CHECK_SIZE)};
+  border: {rule}; border-radius: {px(3)}; background: {t.SURFACE}; }}
+QCheckBox::indicator:checked {{ background: {t.ACCENT};
+  border: {t.RULE_WIDTH}px solid {t.ACCENT}; }}
 QLineEdit[state="invalid"] {{ border: {t.RULE_WIDTH}px solid {t.ERROR}; }}
 QToolButton#add_operand {{ border: {rule}; border-radius: {px(3)}; padding: {px(2)} {px(8)};
   background: {t.SURFACE}; }}

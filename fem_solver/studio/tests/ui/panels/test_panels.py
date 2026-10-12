@@ -5,6 +5,7 @@ from femstudio.ui.panels.mesh import MeshPanel
 from femstudio.ui.panels.physics import PhysicsPanel
 from femstudio.ui.panels.results import ResultsPanel
 from femstudio.ui.panels.solve import SolvePanel
+from femstudio.ui.results_state import ResultsState
 
 
 def test_curve_descriptions():
@@ -92,7 +93,7 @@ def test_solve_panel_names_the_backend_and_its_availability(qtbot, session):
 
 @pytest.mark.ui
 def test_results_panel_says_there_is_no_result_yet(qtbot, document):
-    panel = ResultsPanel()
+    panel = ResultsPanel(ResultsState())
     qtbot.addWidget(panel)
     panel.update_view(document, "", "")
     assert panel.text() == "No result yet."
