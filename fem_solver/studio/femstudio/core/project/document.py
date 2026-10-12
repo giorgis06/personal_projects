@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from femstudio.core.scene.scene import Scene
 from femstudio.core.scene.serialization import load_scene
 
 CELLS_ACROSS = 40
+MAX_CELLS_ACROSS = 400  # finer than this is refused: it would not mesh in reasonable time
 
 
 class DocumentError(ValueError):
@@ -48,21 +50,40 @@ class Document:
         return names
 
 
-def default_mesh_size(scene: Scene) -> float:
-    """An element size that puts about 40 elements across the scene's longest side."""
+def _longest_side(scene: Scene) -> float:
     corners = [corner for shape in scene.shapes for corner in shape.bounds]
     if not corners:
         raise DocumentError("the scene has no shapes to mesh")
     xs, ys = [c[0] for c in corners], [c[1] for c in corners]
-    return max(max(xs) - min(xs), max(ys) - min(ys)) / CELLS_ACROSS
+    return max(max(xs) - min(xs), max(ys) - min(ys))
+
+
+def default_mesh_size(scene: Scene) -> float:
+    """An element size that puts about 40 elements across the scene's longest side."""
+    return _longest_side(scene) / CELLS_ACROSS
+
+
+def check_mesh_size(scene: Scene, size: float) -> float:
+    """`size` if it is a usable element size for the scene, else DocumentError."""
+    if not (math.isfinite(size) and size > 0):
+        raise DocumentError("the element size must be a positive number")
+    finest = _longest_side(scene) / MAX_CELLS_ACROSS
+    if size < finest:
+        raise DocumentError(f"element size {size:g} is finer than {finest:g}, the finest allowed")
+    return size
 
 
 def document_from_scene(
-    scene: Scene, source: Path, workdir: Path, project: Project | None = None, on_log=None
+    scene: Scene,
+    source: Path,
+    workdir: Path,
+    project: Project | None = None,
+    on_log=None,
+    size: float | None = None,
 ) -> Document:
-    """Mesh a scene at the default size; one that cannot be meshed yet still gives a Document."""
+    """Mesh a scene at `size` (the default one when None); one that cannot be meshed still opens."""
     try:
-        size = default_mesh_size(scene)
+        size = default_mesh_size(scene) if size is None else check_mesh_size(scene, size)
         mesh = mesh_scene(scene, size, workdir / "mesh.msh", on_log)
     except (DocumentError, MeshError) as error:
         return Document(source, None, scene, project, mesh_error=str(error))

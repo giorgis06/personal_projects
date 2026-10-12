@@ -80,9 +80,22 @@ class WorkflowBar(QWidget):
     def backend(self) -> str:
         return self._backend.currentText()
 
+    def set_backend(self, name: str) -> None:
+        index = self._backend.findText(name)
+        if index >= 0:
+            self._backend.setCurrentIndex(index)
+
     def set_run_enabled(self, enabled: bool, reason: str = "") -> None:
         self._run.setEnabled(enabled)
         self._run.setToolTip(reason)
+
+    def set_running(self, running: bool) -> None:
+        """While a solve runs the button stops it."""
+        self._run.setText("Stop" if running else "Run")
+        self._backend.setEnabled(not running)
+
+    def run_text(self) -> str:
+        return self._run.text()
 
     def run_enabled(self) -> bool:
         return self._run.isEnabled()

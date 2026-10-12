@@ -81,6 +81,9 @@ class MainMenuBar(QMenuBar):
     def set_run_enabled(self, enabled: bool) -> None:
         self._run_action.setEnabled(enabled)
 
+    def set_running(self, running: bool) -> None:
+        self._run_action.setText("Stop" if running else "Run")
+
     def set_history(self, undo_label: str | None, redo_label: str | None) -> None:
         """Enable Undo and Redo, naming the edit each would take back or bring back."""
         self._undo.setEnabled(undo_label is not None)

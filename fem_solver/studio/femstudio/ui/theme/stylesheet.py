@@ -107,11 +107,13 @@ QPushButton#validation[level="error"] {{ color: {t.ERROR}; }}
 QDialog QListWidget {{ background: {t.SURFACE}; border: {rule}; }}
 QPushButton {{ border: {rule}; border-radius: {px(t.RADIUS)};
   padding: {px(4)} {px(12)}; background: {t.SURFACE}; }}
-QLineEdit, QDoubleSpinBox, QComboBox, QPlainTextEdit {{ border: {rule};
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit {{ border: {rule};
   border-radius: {px(3)}; padding: {px(3)} {px(6)}; background: {t.SURFACE};
   font-family: "{mono}"; selection-background-color: {t.SELECTION}; selection-color: {t.INK}; }}
-QLineEdit:focus, QDoubleSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus {{
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus,
+QPlainTextEdit:focus {{
   border: {t.RULE_WIDTH}px solid {t.ACCENT}; }}
+QLineEdit[state="invalid"] {{ border: {t.RULE_WIDTH}px solid {t.ERROR}; }}
 QToolButton#add_operand {{ border: {rule}; border-radius: {px(3)}; padding: {px(2)} {px(8)};
   background: {t.SURFACE}; }}
 QSplitter::handle {{ background: {t.RULE}; }}

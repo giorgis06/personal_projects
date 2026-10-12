@@ -43,6 +43,10 @@ def main() -> int:
     print(f"fake fem: problem {document['problem_type']}", flush=True)
     if mode == "slow":
         time.sleep(60)
+    if mode == "chatty":
+        for step in range(600):
+            print(f"fake fem: step {step}", flush=True)
+            time.sleep(0.05)
 
     if mode == "fail":
         print("matrix is singular: no dirichlet boundary", file=sys.stderr)

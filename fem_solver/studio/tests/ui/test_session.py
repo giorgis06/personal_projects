@@ -1,8 +1,9 @@
 import pytest
 from examples.capacitor import capacitor_scene
+from femstudio.core.project.project import Project
 from femstudio.core.scene import editing
 from femstudio.core.scene.serialization import load_scene
-from femstudio.ui.session import UNTITLED, Session
+from femstudio.ui.session import UNTITLED, RunRefused, Session
 from tests.ui.conftest import EXAMPLE
 
 pytestmark = pytest.mark.ui
@@ -158,3 +159,31 @@ def test_an_untitled_scene_cannot_be_saved_without_a_name(qtbot, session, tmp_pa
         assert session.save() is False
     assert "choose a name" in signal.args[1]
     assert not (tmp_path / "untitled.scene.json").exists()
+
+
+def test_plan_run_needs_a_scene_with_a_mesh(session):
+    with pytest.raises(RunRefused, match="no scene"):
+        session.plan_run()
+    session.new_scene("electrostatics")
+    with pytest.raises(RunRefused, match="no mesh"):
+        session.plan_run()
+
+
+def test_plan_run_copies_the_scene_and_numbers_the_runs(session):
+    assert session.open_path(EXAMPLE)
+    first = session.plan_run()
+    assert first.run.number == 1
+    assert first.scene is not session.scene
+    assert first.scene == session.scene
+    session.edit("add", lambda scene: editing.add_shape(scene, editing.new_shape(scene, "circle")))
+    assert len(session.scene.shapes) == 4
+    assert len(first.scene.shapes) == 3
+    assert session.plan_run().run.number == 2
+    assert [run.number for run in session.runs()] == [1, 2]
+
+
+def test_a_project_keeps_its_runs_in_its_own_folder(session, tmp_path):
+    project = Project.create(tmp_path / "project", capacitor_scene())
+    assert session.open_path(project.folder)
+    plan = session.plan_run()
+    assert plan.run.folder.parent == project.folder / "runs"

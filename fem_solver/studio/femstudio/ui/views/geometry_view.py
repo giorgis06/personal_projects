@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyvista as pv
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from femstudio.core.mesh.mesh_data import MeshData
@@ -9,6 +10,7 @@ from femstudio.core.project.document import Document
 from femstudio.ui.theme import tokens as t
 
 UNNAMED_KIND = "unnamed"
+HEADLESS_PLATFORMS = ("offscreen", "minimal")  # Qt platforms with no display to draw on
 
 
 @dataclass(frozen=True)
@@ -89,11 +91,19 @@ class GeometryView(QWidget):
         self._drawn = False
         self._plotter = None
         try:
-            from pyvistaqt import QtInteractor
+            if QGuiApplication.platformName() in HEADLESS_PLATFORMS:
+                # Nothing to show a widget on; the scene is still built and can be rendered.
+                self._plotter = pv.Plotter(off_screen=True)
+                self._plotter.set_background(t.STAGE)
+                note = QLabel("3D drawing is built off screen on this platform.")
+                note.setObjectName("placeholder")
+                layout.addWidget(note)
+            else:
+                from pyvistaqt import QtInteractor
 
-            self._plotter = QtInteractor(self)
-            self._plotter.set_background(t.STAGE)
-            layout.addWidget(self._plotter.interactor)
+                self._plotter = QtInteractor(self)
+                self._plotter.set_background(t.STAGE)
+                layout.addWidget(self._plotter.interactor)
         except Exception as error:  # no usable OpenGL: the window still opens
             note = QLabel(f"3D drawing is not available here: {error}")
             note.setObjectName("placeholder")
