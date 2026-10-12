@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import threading
 from collections.abc import Callable
@@ -29,12 +30,13 @@ def default_executable() -> Path:
 
 
 def _stop(process: subprocess.Popen) -> None:
+    """End the solver and anything it started: it runs in its own process group."""
     if process.poll() is None:
-        process.terminate()
+        os.killpg(process.pid, signal.SIGTERM)
         try:
             process.wait(STOP_GRACE_SECONDS)
         except subprocess.TimeoutExpired:
-            process.kill()
+            os.killpg(process.pid, signal.SIGKILL)
             process.wait()
 
 
@@ -72,6 +74,7 @@ class ExecutableBackend(SolverBackend):
                 stderr=subprocess.PIPE,
                 text=True,
                 errors="replace",
+                start_new_session=True,
             )
         except OSError as error:
             raise BackendUnavailable(f"cannot run {self.executable}: {error}") from error

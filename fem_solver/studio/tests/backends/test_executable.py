@@ -165,3 +165,18 @@ def test_an_exception_from_on_log_stops_the_solver(fake_fem, run_folder, monkeyp
     pid = int((folder / "pid.txt").read_text())
     with pytest.raises(ProcessLookupError):
         os.kill(pid, 0)
+
+
+def test_stopping_reaches_a_child_the_solver_started(tmp_path, run_folder):
+    folder, _ = run_folder
+    wrapper = tmp_path / "wrapper_fem"
+    wrapper.write_text("#!/bin/sh\necho started\nsleep 60\n")
+    wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+
+    def cancel(line):
+        raise RuntimeError("cancelled")
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="cancelled"):
+        ExecutableBackend(wrapper).solve(folder, cancel)
+    assert time.monotonic() - started < 20

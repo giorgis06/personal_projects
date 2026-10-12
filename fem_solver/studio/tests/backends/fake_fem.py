@@ -33,12 +33,15 @@ def main() -> int:
     problem = Path(sys.argv[1])
     document = json.loads(problem.read_text())
     folder = problem.parent
+    if mode == "slow":
+        pid_file = folder / "pid.txt"
+        pid_file.with_name("pid.tmp").write_text(str(os.getpid()))
+        pid_file.with_name("pid.tmp").replace(pid_file)
     if mode == "binary_output":
         sys.stdout.buffer.write(b"progress \xff\xfe not utf-8\n")
         sys.stdout.buffer.flush()
     print(f"fake fem: problem {document['problem_type']}", flush=True)
     if mode == "slow":
-        (folder / "pid.txt").write_text(str(os.getpid()))
         time.sleep(60)
 
     if mode == "fail":
