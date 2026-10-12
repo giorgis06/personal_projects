@@ -114,7 +114,7 @@ def test_a_tensor_with_non_finite_entries_is_caught_by_the_core_rule():
     assert any(f.rule == "material-tensor" for f in validate(scene))
 
 
-@pytest.mark.parametrize("kappa", ["0", "-1", "1 - 1", "-2*pi"])
+@pytest.mark.parametrize("kappa", ["0", "-1", "1 - 1", "-2*pi", "1/0"])
 def test_robin_kappa_must_be_positive_when_constant(electrostatics, kappa):
     scene = capacitor_scene()
     scene.boundaries[0].condition = BoundaryCondition("robin", {"kappa": kappa, "u_ref": "5"})

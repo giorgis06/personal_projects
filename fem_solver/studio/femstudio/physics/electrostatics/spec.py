@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 from femstudio.core.expressions.evaluate import constant_value
@@ -65,6 +66,6 @@ def _check_kappa(subject: str, text) -> list[Finding]:
         value = constant_value(text)
     except ExpressionError:
         return []
-    if value is not None and not value > 0:
-        return [Finding("error", "boundary-fields", subject, "kappa must be positive")]
+    if value is not None and not (math.isfinite(value) and value > 0):
+        return [Finding("error", "boundary-fields", subject, "kappa must be finite and positive")]
     return []
