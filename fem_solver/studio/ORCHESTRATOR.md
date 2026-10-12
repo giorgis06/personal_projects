@@ -69,6 +69,8 @@ fem_solver/studio/
         scene.py             Scene = shapes + regions + boundaries + physics values
         serialization.py     Scene <-> scene.json
         validation.py        checks listed under "Validation"
+        editing.py           edit operations that keep names consistent; refused edits change nothing
+        history.py           undo and redo by scene snapshots, one step per committed edit
       expressions/
         grammar.py           the allowed expression language
         evaluate.py          parse, validate, evaluate on numpy arrays
@@ -101,6 +103,7 @@ fem_solver/studio/
       mock.py                analytic field, no solver needed
     ui/
       main_window.py         assembles the regions below; holds no logic of its own
+      session.py             what is open: edits, undo, saving, re-meshing for the preview
       theme/
         tokens.py            every colour, font and spacing value, by name
         stylesheet.py        builds the Qt stylesheet from the tokens
@@ -113,7 +116,7 @@ fem_solver/studio/
         log_dock.py          solver output (bottom)
         status_bar.py        validation summary and mesh counts
         viewport.py          the tabbed centre area that hosts the views
-      panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock
+      panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock; geometry edits the scene
       views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
       widgets/               dock_title, readouts (M5); expression_edit, tensor_edit (M7)
       workers/               solve_worker (keeps the window responsive)
@@ -322,8 +325,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
 | M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
 | M4 | done | Merged (#20). Run folders hold `scene.json`; stopping a solve is raising from `on_log`. |
-| M5 | in review | Opens a project folder, `scene.json`, `.msh` or `.geo`; a scene is meshed at about 40 elements across. Heatmap and 3D surface tabs are placeholders until M8; Run is disabled until M7; panels are read-only until M6 and M7. A scene that cannot be meshed yet still opens: shapes are drawn, the reason is shown in the viewport and the findings. Interface zoom (owner request on #21) is in. Window checked on screen under X11 and offscreen. |
-| M6 | not started | |
+| M5 | done | Merged (#21). Interface zoom (owner request) is in; see Window design. |
+| M6 | in review | Edits are committed with Apply (one undo step each); every edit re-meshes on the window's thread for the preview. A new region gets the problem type's default material; its conditions and values come with the Physics panel (M7). |
 | M7 | not started | |
 | M8 | not started | |
 | M9 | not started | |

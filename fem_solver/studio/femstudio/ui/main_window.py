@@ -1,5 +1,4 @@
 import sys
-import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt
@@ -7,6 +6,7 @@ from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
     QToolBar,
@@ -14,8 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from femstudio.backends import registry as backends
-from femstudio.core.project.document import Document, open_document
+from femstudio.core.project.document import Document
 from femstudio.physics import registry as physics
+from femstudio.ui.session import UNTITLED, Session
 from femstudio.ui.shell.log_dock import LogDock
 from femstudio.ui.shell.menu_bar import MainMenuBar
 from femstudio.ui.shell.properties_dock import PropertiesDock
@@ -40,9 +41,8 @@ class MainWindow(QMainWindow):
         zoom.set_current(zoom.load(self._settings))
         self.setWindowTitle(TITLE)
         self.resize(zoom.px(t.WINDOW_WIDTH), zoom.px(t.WINDOW_HEIGHT))
-        self._workdir = tempfile.TemporaryDirectory(prefix="femstudio-")
-        self._document: Document | None = None
         self._laid_out = False
+        self.session = Session()
 
         self.menu = MainMenuBar()
         self.setMenuBar(self.menu)
@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
         self.viewport = Viewport()
         self.setCentralWidget(self.viewport)
         self.scene_dock = SceneDock()
-        self.properties = PropertiesDock()
+        self.properties = PropertiesDock(self.session)
         self.log = LogDock()
         self.status = StatusPanel()
         self.setStatusBar(self.status)
@@ -77,13 +77,28 @@ class MainWindow(QMainWindow):
         self.workflow.stepChanged.connect(self._on_step)
         self.workflow.backendChanged.connect(self.properties.set_backend)
         self.scene_dock.selectionChanged.connect(self._on_selection)
-        self.menu.openFileRequested.connect(self._choose_file)
-        self.menu.openFolderRequested.connect(self._choose_folder)
-        self.menu.quitRequested.connect(self.close)
-        self.menu.resetLayoutRequested.connect(self.reset_layout)
-        self.menu.zoomInRequested.connect(lambda: self.set_zoom(zoom.zoomed_in(zoom.current())))
-        self.menu.zoomOutRequested.connect(lambda: self.set_zoom(zoom.zoomed_out(zoom.current())))
-        self.menu.zoomResetRequested.connect(lambda: self.set_zoom(1.0))
+
+        menu = self.menu
+        menu.newSceneRequested.connect(self.new_scene)
+        menu.openFileRequested.connect(self._choose_file)
+        menu.openFolderRequested.connect(self._choose_folder)
+        menu.saveRequested.connect(self.save)
+        menu.saveAsRequested.connect(self._choose_save_path)
+        menu.undoRequested.connect(self.session.undo)
+        menu.redoRequested.connect(self.session.redo)
+        menu.quitRequested.connect(self.close)
+        menu.resetLayoutRequested.connect(self.reset_layout)
+        menu.zoomInRequested.connect(lambda: self.set_zoom(zoom.zoomed_in(zoom.current())))
+        menu.zoomOutRequested.connect(lambda: self.set_zoom(zoom.zoomed_out(zoom.current())))
+        menu.zoomResetRequested.connect(lambda: self.set_zoom(1.0))
+
+        session = self.session
+        session.documentChanged.connect(self._on_document)
+        session.historyChanged.connect(self._on_history)
+        session.dirtyChanged.connect(lambda _dirty: self._update_title())
+        session.selectionRequested.connect(self._select)
+        session.logLine.connect(self.log.append_line)
+        session.errorRaised.connect(self.report_error)
 
     def _on_step(self, step: str) -> None:
         self.properties.show_step(step)
@@ -92,6 +107,12 @@ class MainWindow(QMainWindow):
     def _on_selection(self, kind: str, name: str) -> None:
         self.properties.set_selection(kind, name)
         self.viewport.highlight(kind, name)
+
+    def _select(self, kind: str, name: str) -> None:
+        try:
+            self.scene_dock.select(kind, name)
+        except KeyError:
+            pass
 
     def set_zoom(self, factor: float) -> None:
         """Scale the whole interface and remember the choice; the viewport drawing is not scaled."""
@@ -141,50 +162,87 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.viewport.close_views()
-        self._workdir.cleanup()
+        self.session.close()
         super().closeEvent(event)
 
     @property
     def document(self) -> Document | None:
-        return self._document
+        return self.session.document
+
+    # -- files and the scene being edited
 
     def open_path(self, path: Path) -> bool:
-        """Open a project folder, `scene.json`, `.msh` or `.geo`; show the reason on failure."""
-        path = Path(path)
-        self.log.append_line(f"[open] {path}")
+        """Open a project folder, `scene.json`, `.msh` or `.geo`; the reason is shown on failure."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            document = open_document(path, Path(self._workdir.name), self.log.append_line)
-        except (ValueError, OSError) as error:
-            self.log.append_line(f"[error] {error}")
-            self.report_error(f"Cannot open {path.name}", str(error))
-            return False
+            return self.session.open_path(Path(path))
         finally:
             QApplication.restoreOverrideCursor()
-        self._show(document)
+
+    def new_scene(self) -> bool:
+        types = [p.name for p in physics.available()]
+        if not types:
+            self.report_error("New scene", "no problem type is available")
+            return False
+        problem = types[0]
+        if len(types) > 1:
+            problem, chosen = QInputDialog.getItem(
+                self, "New scene", "Problem type", types, 0, False
+            )
+            if not chosen:
+                return False
+        self.session.new_scene(problem)
         return True
+
+    def save(self, path: Path | None = None) -> bool:
+        """Save into the project, to `path`, or ask for a name when the scene has none yet."""
+        document = self.session.document
+        if path is None and document is not None and document.project is None:
+            if document.source == UNTITLED or document.source.suffix != ".json":
+                return self._choose_save_path()
+        return self.session.save(path)
+
+    def _choose_save_path(self) -> bool:
+        path, _ = QFileDialog.getSaveFileName(self, "Save scene", "", "Scene (*.json)")
+        if not path:
+            return False
+        return self.session.save(Path(path))
 
     def report_error(self, title: str, message: str) -> None:
         QMessageBox.critical(self, title, message)
 
-    def _show(self, document: Document) -> None:
-        self._document = document
+    def _on_document(self, document: Document | None, reset_view: bool) -> None:
         problem_type = None
-        if document.scene is not None:
+        if document is not None and document.scene is not None:
             try:
                 problem_type = physics.get(document.scene.problem_type)
             except KeyError as error:
                 self.log.append_line(f"[warning] {error.args[0]}")
-        self.setWindowTitle(f"{TITLE} - {document.source.name}")
-        self.scene_dock.set_document(document, problem_type)
-        self.properties.set_document(document)
-        self.viewport.set_document(document)
+        keep = not reset_view
+        self.scene_dock.set_document(document, problem_type, keep_selection=keep)
+        self.properties.set_document(document, keep_selection=keep)
+        self.viewport.set_document(document, reset_view)
         self.status.set_document(document)
-        if document.mesh is None:
-            self.log.append_line(f"[mesh] not built: {document.mesh_error}")
-        else:
-            mesh = document.mesh
-            self.log.append_line(f"[open] {mesh.n_nodes} nodes, {mesh.n_triangles} triangles")
+        self.menu.set_saveable(document is not None and document.scene is not None)
+        self._update_title()
+        if document is not None and reset_view:
+            if document.mesh is None:
+                self.log.append_line(f"[mesh] not built: {document.mesh_error}")
+            else:
+                mesh = document.mesh
+                self.log.append_line(f"[open] {mesh.n_nodes} nodes, {mesh.n_triangles} triangles")
+
+    def _on_history(self) -> None:
+        history = self.session.history
+        self.menu.set_history(history.undo_label, history.redo_label)
+
+    def _update_title(self) -> None:
+        document = self.session.document
+        if document is None:
+            self.setWindowTitle(TITLE)
+            return
+        mark = "*" if self.session.dirty else ""
+        self.setWindowTitle(f"{TITLE} - {document.source.name}{mark}")
 
     def _choose_file(self) -> None:
         text = "Scene or mesh (*.json *.msh *.geo)"

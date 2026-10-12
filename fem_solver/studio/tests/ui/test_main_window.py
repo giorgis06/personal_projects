@@ -80,7 +80,11 @@ def test_selecting_a_scene_row_highlights_that_part_in_the_viewport(opened):
 
 def test_selecting_a_row_shows_its_fields_in_the_properties_dock(opened):
     opened.scene_dock.select("region", "glass")
-    assert opened.properties.panel("Geometry").rows() == [("area", "(glass_outer - electrode)")]
+    geometry = opened.properties.panel("Geometry")
+    assert geometry.field("name").text() == "glass"
+    assert geometry.field("shape_0").currentText() == "glass_outer"
+    assert geometry.field("operation_1").currentText() == "difference"
+    assert geometry.field("shape_1").currentText() == "electrode"
     assert opened.properties.panel("Physics").rows() == [("epsilon", "4")]
     opened.scene_dock.select("boundary", "inner_electrode")
     assert opened.properties.panel("Physics").rows() == [("kind", "Fixed potential"), ("g", "5 V")]
@@ -376,7 +380,7 @@ def test_zoomed_widgets_created_later_are_sized_at_the_current_zoom(window, qtbo
     window.set_zoom(1.5)
     assert window.open_path(EXAMPLE)
     window.scene_dock.select("region", "glass")
-    grid = window.properties.panel("Geometry")._grid
+    grid = window.properties.panel("Mesh")._grid
     assert grid._layout.verticalSpacing() == round(t.GAP * 1.5)
 
 

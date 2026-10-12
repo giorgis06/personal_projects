@@ -57,7 +57,10 @@ def default_mesh_size(scene: Scene) -> float:
     return max(max(xs) - min(xs), max(ys) - min(ys)) / CELLS_ACROSS
 
 
-def _from_scene(scene: Scene, source: Path, workdir: Path, project: Project | None, on_log):
+def document_from_scene(
+    scene: Scene, source: Path, workdir: Path, project: Project | None = None, on_log=None
+) -> Document:
+    """Mesh a scene at the default size; one that cannot be meshed yet still gives a Document."""
     try:
         size = default_mesh_size(scene)
         mesh = mesh_scene(scene, size, workdir / "mesh.msh", on_log)
@@ -74,9 +77,9 @@ def open_document(path: Path, workdir: Path, on_log=None) -> Document:
     path = Path(path)
     if path.is_dir():
         project = Project.open(path)
-        return _from_scene(project.load_scene(), path, workdir, project, on_log)
+        return document_from_scene(project.load_scene(), path, workdir, project, on_log)
     if path.suffix == ".json":
-        return _from_scene(load_scene(path), path, workdir, None, on_log)
+        return document_from_scene(load_scene(path), path, workdir, None, on_log)
     if path.suffix in (".msh", ".geo"):
         return Document(path, read_mesh(path, on_log))
     raise DocumentError(

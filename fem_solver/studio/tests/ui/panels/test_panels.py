@@ -1,26 +1,10 @@
 import pytest
 from femstudio.core.scene.boundary import BoundaryCondition
-from femstudio.ui.panels.geometry import GeometryPanel, describe_area, describe_curve
+from femstudio.ui.panels.geometry import describe_area, describe_curve
 from femstudio.ui.panels.mesh import MeshPanel
 from femstudio.ui.panels.physics import PhysicsPanel
 from femstudio.ui.panels.results import ResultsPanel
 from femstudio.ui.panels.solve import SolvePanel
-
-
-@pytest.mark.ui
-def test_geometry_panel_describes_each_kind_of_selection(qtbot, document):
-    panel = GeometryPanel()
-    qtbot.addWidget(panel)
-    panel.update_view(document, "shape", "electrode")
-    assert panel.rows() == [("type", "circle"), ("center", "(0.0, 0.0)"), ("radius", "0.2")]
-    panel.update_view(document, "region", "glass")
-    assert panel.rows() == [("area", "(glass_outer - electrode)")]
-    panel.update_view(document, "boundary", "outer_wall")
-    assert panel.rows() == [("curve", "outline of wall")]
-    panel.update_view(document, "", "")
-    assert panel.rows() == [("shapes", "3"), ("regions", "2"), ("boundaries", "2")]
-    panel.update_view(None, "", "")
-    assert panel.rows() == [("open", "nothing")]
 
 
 def test_curve_descriptions():
