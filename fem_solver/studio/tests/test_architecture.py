@@ -46,10 +46,20 @@ def test_no_qt_or_pyvista_outside_ui():
 
 
 def _string_constants(path: Path) -> set[str]:
+    """String literals in a module, leaving out the format spec of an f-string (`{x:g}`)."""
+    tree = ast.parse(path.read_text())
+    in_format_spec = {
+        id(inner)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FormattedValue) and node.format_spec is not None
+        for inner in ast.walk(node.format_spec)
+    }
     return {
         node.value
-        for node in ast.walk(ast.parse(path.read_text()))
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in in_format_spec
     }
 
 
@@ -82,3 +92,11 @@ def test_ui_does_not_spell_out_field_or_boundary_kind_names():
         if found:
             offenders[str(path.relative_to(PACKAGE))] = sorted(found)
     assert offenders == {}
+
+
+def test_format_specs_are_not_mistaken_for_names(tmp_path):
+    source = tmp_path / "m.py"
+    source.write_text('x = f"{value:g}"\ny = "g"\n')
+    assert _string_constants(source) == {"g"}
+    source.write_text('x = f"{value:g}"\n')
+    assert _string_constants(source) == set()

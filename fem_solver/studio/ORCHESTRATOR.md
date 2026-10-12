@@ -87,6 +87,7 @@ fem_solver/studio/
       project/
         project.py           a folder on disk holding one scene and its runs
         run.py               one solve: inputs, outputs, log, status
+        document.py          what is open: a mesh, with the scene and project it came from
     physics/
       base.py                ProblemType interface
       registry.py
@@ -104,6 +105,7 @@ fem_solver/studio/
         tokens.py            every colour, font and spacing value, by name
         stylesheet.py        builds the Qt stylesheet from the tokens
       shell/
+        menu_bar.py          File, Edit, View, Run, Help
         workflow_bar.py      the five step tabs, backend selector, Run button
         scene_dock.py        the Scene tree (left)
         properties_dock.py   hosts the current panel (right)
@@ -112,7 +114,7 @@ fem_solver/studio/
         viewport.py          the tabbed centre area that hosts the views
       panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock
       views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
-      widgets/               expression_edit, tensor_edit
+      widgets/               dock_title, readouts (M5); expression_edit, tensor_edit (M7)
       workers/               solve_worker (keeps the window responsive)
   tests/                     mirrors femstudio/ folder by folder
   examples/                  capacitor.py and capacitor.scene.json
@@ -310,8 +312,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M1 | done | Merged (#17). Validation rules are generic, keyed on condition kind and tensor values, not on problem type. |
 | M2 | done | Merged (#18). Unnamed outer edges are refused unless `Scene.default_boundary` is set. |
 | M3 | done | Merged (#19). Units and epsilon_0 scaling per the owner decision; see Units. |
-| M4 | in review | Run folder is `<project>/runs/run_NNN/{scene.json, problem.json, mesh.msh, result/, log.txt, status.json}`; the run keeps the scene it was solved with. To stop a solve, raise from `on_log`. `Run.execute` takes the problem type and backend as arguments so `core/` imports neither. `ProblemType.derive` is new. The real-solver test runs only when `FEM_EXECUTABLE` is set. |
-| M5 | not started | |
+| M4 | done | Merged (#20). Run folders hold `scene.json`; stopping a solve is raising from `on_log`. |
+| M5 | in review | Opens a project folder, `scene.json`, `.msh` or `.geo`; a scene is meshed at about 40 elements across. Heatmap and 3D surface tabs are placeholders until M8; Run is disabled until M7; panels are read-only until M6 and M7. Window checked on screen under X11 and offscreen. |
 | M6 | not started | |
 | M7 | not started | |
 | M8 | not started | |
