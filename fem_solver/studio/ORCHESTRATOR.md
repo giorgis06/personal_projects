@@ -87,11 +87,14 @@ fem_solver/studio/
         field.py             a named scalar or vector field on a mesh
         derived.py           E = -grad u, |E|, energy density
         reader.py            result folder -> fields + run metadata
+        result_set.py        the fields of one run (solved and derived), ranges, readings (M8)
+        probe.py             which triangle holds a point, and the weights in it (M8)
       project/
         project.py           a folder on disk holding one scene and its runs
         run.py               one solve: inputs, outputs, log, status
         run_job.py           solve one run folder from the command line; the window starts it (M7)
         document.py          what is open: a mesh, with the scene and project it came from
+        loaded_run.py        a finished run read back with its derived fields (M8)
     physics/
       base.py                ProblemType interface
       registry.py
@@ -107,6 +110,7 @@ fem_solver/studio/
       main_window.py         assembles the regions below; holds no logic of its own
       session.py             what is open: edits, undo, saving, re-meshing for the preview
       runner.py              one solve at a time as a process; why Run is unavailable (M7)
+      results_state.py       the run on show and how it is displayed; views and panel share it (M8)
       theme/
         tokens.py            every colour, font and spacing value, by name
         stylesheet.py        builds the Qt stylesheet from the tokens
@@ -121,6 +125,7 @@ fem_solver/studio/
         viewport.py          the tabbed centre area that hosts the views
       panels/                geometry, physics, mesh, solve, results (one file each); shown in the Properties dock; geometry edits the scene
       views/                 geometry_view, mesh_view, heatmap_view, surface_view; one viewport tab each
+                             (plotter_view and field_view are the bases they share, M8)
       widgets/               dock_title, readouts (M5); expression_edit, number_edit, tensor_edit,
                              field_form, condition_edit (M7)
       workers/               solve_worker: the QProcess that runs run_job (M7)
@@ -332,5 +337,5 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 | M5 | done | Merged (#21). Interface zoom (owner request) is in; see Window design. |
 | M6 | in review | Edits are committed with Apply (one undo step each); every edit re-meshes on the window's thread for the preview. A new region gets the problem type's default material; its conditions and values come with the Physics panel (M7). |
 | M7 | in review | A solve runs as a separate process (`core/project/run_job.py`): gmsh is not thread-safe, and Stop is a SIGTERM that works when the solver is silent. Default backend is `mock` until the C++ CLI exists. Mesh size and solver settings are session settings, not part of `scene.json`. Runs of a scene outside a project live in the session's temporary folder. Headless Qt platforms draw into an off-screen plotter, not the GL widget (it leaks GL threads per window and aborted the ui suite). **Known debt:** the ui tests end the process with `os._exit` after the report, because without it the run dies at shutdown with `free(): invalid pointer` (exit 134) after the tests pass; the cause is not found, so a crash at shutdown is invisible there. On screen (`QT_QPA_PLATFORM=xcb`) a full ui run also fails now and then (1 in 10 on the reviewed M7 commit): a wrapper is handed another object (`QOffscreenSurface`) or the process segfaults; it needs the real GL widget, so offscreen runs and CI do not see it, and the cause is not found. Preview meshing still runs on the window's thread. |
-| M8 | not started | |
+| M8 | in review | Selecting a run, or a run finishing, loads it and opens Results; both field views read one `ResultsState` (field, range, colour map, overlay, probe). A vector field is drawn by its magnitude; the 3D surface colours and lifts a per-triangle field from node averages, the heatmap draws it flat. Surface height is linear in value, clipped to the colour range: its low end is 0 and its high end 0.4 of the mesh's longest side. A range end within 1e-12 of the span from zero counts as zero. `coolwarm` with the automatic range is centred on zero. The probe is placed by double-click or by typing x and y; it reads a nodal field by linear interpolation and a triangle field as the triangle's value. The colour bar's title is its own text above the bar. The field views make their plotter when first shown (a plotter on screen holds a GL context). **Known debt, still open:** a full on-screen ui run fails now and then (1 in 6 here, on the M7 base 1 in 10), as for M7; with two more real GL widgets per window it failed 3 in 4, so the results tests draw with off-screen plotters on every platform and the real widget is checked by hand. |
 | M9 | not started | |

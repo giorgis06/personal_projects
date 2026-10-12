@@ -2,15 +2,13 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyvista as pv
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from femstudio.core.mesh.mesh_data import MeshData
 from femstudio.core.project.document import Document
 from femstudio.ui.theme import tokens as t
+from femstudio.ui.views.plotter_view import PlotterView
 
 UNNAMED_KIND = "unnamed"
-HEADLESS_PLATFORMS = ("offscreen", "minimal")  # Qt platforms with no display to draw on
 
 
 @dataclass(frozen=True)
@@ -71,47 +69,20 @@ def element_styles(
     return styles
 
 
-class GeometryView(QWidget):
+class GeometryView(PlotterView):
     """Named regions filled, boundaries as coloured lines, shape outlines, seen from above."""
 
     show_edges = False
 
     def __init__(self) -> None:
         super().__init__()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self._note = QLabel()
-        self._note.setProperty("role", "note")
-        self._note.setWordWrap(True)
-        self._note.hide()
-        layout.addWidget(self._note)
         self._document: Document | None = None
         self._selected: tuple[str, str] = ("", "")
         self._actors: dict[tuple[str, str], object] = {}
         self._drawn = False
-        self._plotter = None
-        try:
-            if QGuiApplication.platformName() in HEADLESS_PLATFORMS:
-                # Nothing to show a widget on; the scene is still built and can be rendered.
-                self._plotter = pv.Plotter(off_screen=True)
-                self._plotter.set_background(t.STAGE)
-                note = QLabel("3D drawing is built off screen on this platform.")
-                note.setObjectName("placeholder")
-                layout.addWidget(note)
-            else:
-                from pyvistaqt import QtInteractor
 
-                self._plotter = QtInteractor(self)
-                self._plotter.set_background(t.STAGE)
-                layout.addWidget(self._plotter.interactor)
-        except Exception as error:  # no usable OpenGL: the window still opens
-            note = QLabel(f"3D drawing is not available here: {error}")
-            note.setObjectName("placeholder")
-            layout.addWidget(note)
-
-    @property
-    def can_draw(self) -> bool:
-        return self._plotter is not None
+    def _release(self) -> None:
+        self._actors = {}
 
     def names(self) -> tuple[list[str], list[str], list[str]]:
         document = self._document
@@ -138,8 +109,7 @@ class GeometryView(QWidget):
         self._document = document
         self._actors = {}
         unmeshed = document is not None and document.mesh is None
-        self._note.setText(f"Not meshed: {document.mesh_error}" if unmeshed else "")
-        self._note.setVisible(unmeshed)
+        self._set_note(f"Not meshed: {document.mesh_error}" if unmeshed else "")
         if self._plotter is None:
             return
         self._plotter.clear()
@@ -160,9 +130,6 @@ class GeometryView(QWidget):
         if poly.n_cells == 0:
             return
         self._actors[key] = self._plotter.add_mesh(poly, name=f"{key[0]}:{key[1]}", **options)
-
-    def note(self) -> str:
-        return self._note.text()
 
     def _draw(self, document: Document) -> None:
         mesh = document.mesh
@@ -244,10 +211,3 @@ class GeometryView(QWidget):
         prop = actor.GetProperty()
         colour = pv.Color(prop.GetColor()).hex_rgb.lower()
         return Style(colour, round(prop.GetOpacity(), 6), prop.GetLineWidth())
-
-    def close_plotter(self) -> None:
-        """Stop and release the 3D widget; a second call, or a late render, does nothing."""
-        plotter, self._plotter = self._plotter, None
-        self._actors = {}
-        if plotter is not None:
-            plotter.close()

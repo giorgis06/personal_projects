@@ -32,6 +32,7 @@ ROW_HEIGHT = 22
 RADIUS = 4
 RULE_WIDTH = 1
 SWATCH = 10
+CHECK_SIZE = 14
 PAD = 8
 GAP = 4
 SECTION_GAP = 12
@@ -45,6 +46,23 @@ PROPERTIES_DOCK_WIDTH = 300
 LOG_DOCK_HEIGHT = 96
 WINDOW_WIDTH = 1180
 WINDOW_HEIGHT = 700
+
+# Colour maps are data colour, kept apart from the interface tokens above.
+COLOUR_MAPS = ("viridis", "inferno", "coolwarm")
+DEFAULT_COLOUR_MAP = "viridis"
+SIGN_CHANGING_MAP = "coolwarm"  # for fields that change sign: zero sits in the middle
+PROBE_COLOUR = "#e8590c"
+PROBE_SIZE = 12.0
+PROBE_LIFT = 0.002  # of the longest side: keeps the marker above a flat surface
+SURFACE_HEIGHT = 0.4  # the colour range's height as a fraction of the mesh's longest side
+COLOUR_BAR_X = 0.88
+COLOUR_BAR_Y = 0.1
+COLOUR_BAR_WIDTH = 0.06
+COLOUR_BAR_HEIGHT = 0.8
+COLOUR_BAR_LABELS = 5
+COLOUR_BAR_FORMAT = "%.3g"
+COLOUR_BAR_FONT = 12
+COLOUR_BAR_TITLE_FONT = 8
 
 LINE_WIDTH = 2.0
 LINE_WIDTH_SELECTED = 5.0
