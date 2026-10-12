@@ -239,3 +239,15 @@ def test_non_numeric_coordinates_are_an_edit_error_not_a_crash(scene):
 def test_the_editing_functions_are_public(scene):
     for name in ("add_shape", "update_shape", "rename_shape", "build_area", "add_boundary"):
         assert callable(getattr(editing, name))
+
+
+@pytest.mark.parametrize(
+    ("key", "value"), [("corner", (1.0,)), ("corner", (1.0, 2.0, 3.0)), ("center", ())]
+)
+def test_a_coordinate_that_is_not_a_pair_is_an_edit_error(scene, key, value):
+    editing.add_shape(scene, Rectangle("r", (0.0, 0.0), 1.0, 1.0))
+    shape = "r" if key == "corner" else "wall"
+    with pytest.raises(EditError, match="must be an \\(x, y\\) pair"):
+        editing.update_shape(scene, shape, **{key: value})
+    assert scene.shape("r") == Rectangle("r", (0.0, 0.0), 1.0, 1.0)
+    assert scene.shape("wall").center == (0.0, 0.0)

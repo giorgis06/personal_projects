@@ -99,8 +99,10 @@ def _numbers(values: Iterable, what: str) -> list[float]:
 
 def _converted(key: str, value):
     if key in ("center", "corner"):
-        x, y = _numbers(value, key)
-        return (x, y)
+        numbers = _numbers(value, key)
+        if len(numbers) != 2:
+            raise EditError(f"{key} must be an (x, y) pair")
+        return (numbers[0], numbers[1])
     if key == "points":
         points = []
         for point in value:

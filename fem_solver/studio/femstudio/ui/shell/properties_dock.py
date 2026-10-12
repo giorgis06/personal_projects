@@ -38,7 +38,7 @@ class PropertiesDock(QDockWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setWidget(body)
         self.setWidget(scroll)
         self.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)

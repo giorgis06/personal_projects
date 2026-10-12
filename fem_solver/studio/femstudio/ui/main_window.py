@@ -230,6 +230,7 @@ def run(argv: list[str] | None = None) -> int:
     arguments = sys.argv if argv is None else argv
     app = QApplication(arguments)
     window = MainWindow()
+    app.aboutToQuit.connect(window.viewport.close_views)
     window.show()
     if len(arguments) > 1:
         window.open_path(Path(arguments[1]))

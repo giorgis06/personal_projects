@@ -236,5 +236,8 @@ class GeometryView(QWidget):
         return Style(colour, round(prop.GetOpacity(), 6), prop.GetLineWidth())
 
     def close_plotter(self) -> None:
-        if self._plotter is not None:
-            self._plotter.close()
+        """Stop and release the 3D widget; a second call, or a late render, does nothing."""
+        plotter, self._plotter = self._plotter, None
+        self._actors = {}
+        if plotter is not None:
+            plotter.close()

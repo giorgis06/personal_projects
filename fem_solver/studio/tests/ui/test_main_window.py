@@ -10,11 +10,19 @@ pytestmark = pytest.mark.ui
 
 @pytest.fixture
 def window(qtbot, settings):
+    """A shown window, closed here rather than by qtbot.
+
+    qtbot closes its widgets before fixtures are torn down, when a test may still have the
+    unsaved-changes answer patched to "cancel": the window would then stay open and its 3D
+    widget would outlive its GL context, aborting the process a few tests later.
+    """
     window = MainWindow(settings)
-    qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
-    return window
+    yield window
+    window.session._set_dirty(False)
+    window.close()
+    window.deleteLater()
 
 
 @pytest.fixture
@@ -487,3 +495,42 @@ def test_the_question_names_the_file(opened, monkeypatch):
     assert captured["title"] == "Unsaved changes"
     assert "capacitor.scene.json" in captured["text"]
     opened.session._set_dirty(False)
+
+
+def test_closing_the_views_twice_is_harmless_and_final(window):
+    window.open_path(EXAMPLE)
+    views = (window.viewport.geometry_view, window.viewport.mesh_view)
+    assert all(view.can_draw for view in views)
+    window.viewport.close_views()
+    window.viewport.close_views()
+    assert not any(view.can_draw for view in views)
+    window.viewport.set_document(window.document)  # a late redraw must not touch a closed plotter
+    window.viewport.highlight("region", "glass")
+
+
+def test_a_cancelled_close_leaves_the_window_drawing(dirty, monkeypatch):
+    answer(monkeypatch, "cancel")
+    assert dirty.close() is False
+    assert dirty.isVisible()
+    assert dirty.viewport.geometry_view.can_draw and dirty.viewport.mesh_view.can_draw
+
+
+def test_closing_after_discarding_closes_the_views(dirty, monkeypatch):
+    answer(monkeypatch, "discard")
+    assert dirty.close() is True
+    assert not dirty.viewport.geometry_view.can_draw
+
+
+@pytest.mark.parametrize(
+    ("kind", "name"),
+    [("shape", "wall"), ("region", "glass"), ("boundary", "inner_electrode"), ("", "")],
+)
+def test_the_geometry_panels_least_width_fits_the_dock_with_room_to_spare(opened, kind, name):
+    from PySide6.QtWidgets import QApplication
+
+    if kind:
+        opened.scene_dock.select(kind, name)
+    for _ in range(4):
+        QApplication.processEvents()
+    panel = opened.properties.panel("Geometry")
+    assert panel.minimumSizeHint().width() <= t.PROPERTIES_DOCK_WIDTH - 20

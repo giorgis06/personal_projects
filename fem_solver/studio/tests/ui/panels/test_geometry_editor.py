@@ -12,11 +12,19 @@ pytestmark = pytest.mark.ui
 
 @pytest.fixture
 def window(qtbot, settings):
+    """A shown window, closed here rather than by qtbot.
+
+    qtbot closes its widgets before fixtures are torn down, when a test may still have the
+    unsaved-changes answer patched to "cancel": the window would then stay open and its 3D
+    widget would outlive its GL context, aborting the process a few tests later.
+    """
     window = MainWindow(settings)
-    qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
-    return window
+    yield window
+    window.session._set_dirty(False)
+    window.close()
+    window.deleteLater()
 
 
 @pytest.fixture

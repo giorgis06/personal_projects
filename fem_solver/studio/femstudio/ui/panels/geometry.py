@@ -44,7 +44,7 @@ CURVE_FIELDS = {
 ADD_KINDS = ("circle", "rectangle", "polygon", "region", "boundary")
 LIMIT = 1e9
 MIN_COMBO = 6
-ADD_COLUMNS = 3
+ADD_COLUMNS = 2
 
 
 def describe_area(area) -> str:
