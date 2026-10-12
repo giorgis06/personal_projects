@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from femstudio.ui.views.surface_view import surface_heights
 
 
@@ -18,7 +17,6 @@ def test_a_value_that_is_not_a_number_stays_flat():
     assert surface_heights([np.nan, np.inf], 0.0, 1.0, 1.0).tolist() == [0.0, 0.0]
 
 
-def test_values_outside_the_range_go_beyond_it():
-    heights = surface_heights([-1.0, 3.0], 0.0, 2.0, 1.0)
-    assert heights[0] == pytest.approx(-0.5)
-    assert heights[1] == pytest.approx(1.5)
+def test_values_outside_the_range_are_held_at_its_ends():
+    heights = surface_heights([-1.0, 3.0, 1e9], 0.0, 2.0, 1.0)
+    assert heights.tolist() == [0.0, 1.0, 1.0]

@@ -10,6 +10,13 @@ from femstudio.core.results.result_set import Reading, ResultSet
 from femstudio.physics.base import ProblemType
 from femstudio.ui.theme import tokens as t
 
+ROUNDING = 1e-12  # of a field's span: an end this close to zero is rounding noise, not a value
+WHY_NOT = {
+    "created": "it has not been solved",
+    "running": "it is still running",
+    "failed": "it failed",
+}
+
 
 @dataclass(frozen=True)
 class Display:
@@ -68,6 +75,8 @@ class ResultsState(QObject):
         if not display.auto_range:
             return display.low, display.high
         low, high = results.value_range(display.field)
+        noise = ROUNDING * (high - low)
+        low, high = (0.0 if abs(end) < noise else end for end in (low, high))
         if display.colour_map == t.SIGN_CHANGING_MAP and low < 0.0 < high:
             low, high = -max(-low, high), max(-low, high)
         if high == low:
@@ -88,7 +97,8 @@ class ResultsState(QObject):
     def show_run(self, run: Run, problem_type: ProblemType) -> bool:
         """Load a run's result. On failure nothing is shown and `message` says why."""
         if run.state != "success":
-            self._fail(f"run {run.number} has no result: it {run.state}")
+            reason = WHY_NOT.get(run.state, f"its state is {run.state}")
+            self._fail(f"run {run.number} has no result: {reason}")
             return False
         try:
             results = load_result_set(run, problem_type)

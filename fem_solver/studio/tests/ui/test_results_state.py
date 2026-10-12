@@ -83,3 +83,14 @@ def test_signals_are_sent_only_for_a_change(qtbot):
     assert seen == []
     state.set_mesh_overlay(True)
     assert seen == ["display"]
+
+
+def test_rounding_noise_at_the_end_of_a_range_counts_as_zero():
+    state = state_with([-6.87e-16, 1.0, 2.0, 5.0])
+    assert state.colour_range() == (0.0, 5.0)
+    state.set_colour_map(t.SIGN_CHANGING_MAP)
+    assert state.colour_range() == (0.0, 5.0)  # the field does not change sign
+
+
+def test_a_small_negative_value_that_is_real_is_kept():
+    assert state_with([-0.01, 1.0, 2.0, 5.0]).colour_range() == (-0.01, 5.0)

@@ -230,7 +230,7 @@ def test_selecting_a_run_without_a_result_says_why(viewed):
     viewed._load_run("run 1")
     panel = viewed.properties.panel("Results")
     assert viewed.results.results is None
-    assert "has no result" in panel.text()
+    assert panel.text() == "run 1 has no result: it failed"
     assert viewed.viewport.heatmap_view.shown() is None
     assert "has no result" in viewed.viewport.heatmap_view.note()
 
@@ -267,3 +267,19 @@ def test_the_field_keeps_its_choice_when_another_run_replaces_it(qtbot, viewed):
     with qtbot.waitSignal(viewed.runner.finished, timeout=30000):
         viewed.workflow._run.click()
     assert viewed.viewport.heatmap_view.shown() == (2, "E_magnitude", "coolwarm")
+
+
+def test_a_run_not_yet_solved_is_described_in_words(viewed):
+    run = viewed.session.runs()[0]
+    for state, words in (("created", "it has not been solved"), ("running", "it is still running")):
+        (run.folder / "status.json").write_text(f'{{"state": "{state}"}}')
+        viewed._load_run("run 1")
+        assert viewed.results.message == f"run 1 has no result: {words}"
+
+
+def test_narrowing_the_range_keeps_the_surface_inside_its_extent(viewed):
+    viewed.results.set_range(0.0, 1e-3)
+    points = viewed.viewport.surface_view._poly.points
+    side = float(np.ptp(fields(viewed).mesh.nodes, axis=0).max())
+    assert points[:, 2].min() >= 0.0
+    assert points[:, 2].max() <= t.SURFACE_HEIGHT * side * (1 + 1e-9)
