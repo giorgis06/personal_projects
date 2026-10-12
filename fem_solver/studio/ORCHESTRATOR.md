@@ -285,8 +285,8 @@ Tests are how each milestone proves its "Done when" condition, so they are writt
 
 | Milestone | State | Notes |
 |---|---|---|
-| M0 | in review | Window opens (run offscreen and started under X11, not inspected by eye). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
-| M1 | not started | |
+| M0 | done | Merged (#16). Launcher `run()` is in `ui/main_window.py` so `__main__.py` imports no Qt. |
+| M1 | in review | Rules in `validation.py` are generic, keyed on condition kind and tensor values, not on problem type. A boundary is the outline of one named shape; single sides (`square.geo`) are not expressible yet. |
 | M2 | not started | |
 | M3 | not started | |
 | M4 | not started | |

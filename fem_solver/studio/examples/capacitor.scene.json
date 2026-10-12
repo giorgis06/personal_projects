@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "problem_type": "electrostatics",
+  "shapes": [
+    {
+      "type": "circle",
+      "name": "electrode",
+      "center": [
+        0.0,
+        0.0
+      ],
+      "radius": 0.2
+    },
+    {
+      "type": "circle",
+      "name": "glass_outer",
+      "center": [
+        0.0,
+        0.0
+      ],
+      "radius": 0.5
+    },
+    {
+      "type": "circle",
+      "name": "wall",
+      "center": [
+        0.0,
+        0.0
+      ],
+      "radius": 2.0
+    }
+  ],
+  "regions": [
+    {
+      "name": "glass",
+      "area": {
+        "op": "difference",
+        "operands": [
+          "glass_outer",
+          "electrode"
+        ]
+      },
+      "material": {
+        "epsilon": [
+          [
+            4.0,
+            0.0
+          ],
+          [
+            0.0,
+            4.0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "air",
+      "area": {
+        "op": "difference",
+        "operands": [
+          "wall",
+          "glass_outer"
+        ]
+      },
+      "material": {
+        "epsilon": [
+          [
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ]
+      }
+    }
+  ],
+  "boundaries": [
+    {
+      "name": "inner_electrode",
+      "shape": "electrode",
+      "condition": {
+        "kind": "dirichlet",
+        "g": "5"
+      }
+    },
+    {
+      "name": "outer_wall",
+      "shape": "wall",
+      "condition": {
+        "kind": "dirichlet",
+        "g": "0"
+      }
+    }
+  ],
+  "source": {
+    "rho": "0"
+  }
+}
